@@ -3,13 +3,12 @@ import os
 import pytest
 
 
-@pytest.fixture(params=["file.ext", "dir/file.ext", "special\" \'/\n"])
+@pytest.fixture(params=[
+    "file.ext",
+    "dir/file.ext",
+    "special\" \'/\n"
+])
 def filepath(request):
-    """
-    Test different module addresses.
-    Especially test the case where decimal & hex representations differ,
-    and test leading 0's
-    """
     return request.param
 
 
