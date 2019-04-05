@@ -1,0 +1,17 @@
+# Cached builds
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dll
+*.egg
+*.egg-info/
+
+# auto generated files
+src/s3_backup/__meta__.py
+
+# IDEs
+.idea/
+
+/venv

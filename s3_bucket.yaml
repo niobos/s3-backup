@@ -1,0 +1,48 @@
+Parameters:
+  BucketName:
+    Type: String
+    Default: backup
+  NoncurrentRetentionInDays:
+    Type: Number
+    Default: 180  # minimum retention for Glacier Deep Archive
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+            NoncurrentVersionExpirationInDays: !Ref NoncurrentRetentionInDays
+  User:
+    Type: AWS::IAM::User
+    Properties:
+      Policies:
+        - PolicyName: ReadWriteBucket
+          PolicyDocument:
+            Fn::Sub: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "s3:ListBucket",
+                      "s3:GetObject",
+                      "s3:PutObject",
+                      "s3:DeleteObject",
+                      "s3:ListBucketMultipartUploads",
+                      "s3:ListMultipartUploadParts",
+                      "s3:AbortMultipartUpload"
+                    ],
+                    "Resource": [
+                      "arn:aws:s3:::${S3Bucket}",
+                      "arn:aws:s3:::${S3Bucket}/*"
+                    ]
+                  }
+                ]
+              }
