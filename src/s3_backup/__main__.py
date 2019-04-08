@@ -63,6 +63,13 @@ def main(args=None):
                         help="Increase verbosity, can be used multiple times for increased verbosity "
                              "(up to 11 times)")
 
+    parser.add_argument('--no-trust-mtime',
+                        help="Do not trust file modification time to identify if a file needs uploading. "
+                             "By default, a file will only be uploaded if the modification time is more "
+                             "recent than the S3 object or if the size is different. "
+                             "Enabling this option will only use filesize and hash to be used to "
+                             "decide if uploading is needed.")
+
     args = parser.parse_args(args)
 
     for i in range(0, args.verbose):
@@ -70,6 +77,8 @@ def main(args=None):
 
     File.filename_xform_command = args.filename_xform
     File.data_xform_command = args.data_xform
+    if args.no_trust_mtime:
+        File.trust_mtime = False
 
     s3_backup.do_sync(
         local_path=args.path,

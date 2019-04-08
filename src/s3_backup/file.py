@@ -155,13 +155,14 @@ class File:
         except KeyError:
             return 'does not exist on S3'  # key not found in S3 cache
 
-        if self.trust_mtime:
-            local_mtime = datetime.datetime.fromtimestamp(self.stat.st_mtime)
-            if local_mtime > s3_info.s3_modification_time:
-                return f"is newer ({local_mtime} > {s3_info.s3_modification_time})"
-
         if self.stat.st_size != s3_info.plaintext_size:
             return f"different size ({self.stat.st_size} != {s3_info.plaintext_size}"
+
+        if self.trust_mtime:
+            local_mtime = datetime.datetime.fromtimestamp(self.stat.st_mtime)
+            if local_mtime < s3_info.s3_modification_time:
+                return False  # mtimes are trustworthy, no need to check hash
+            # else: verify digest
 
         try:
             algorithm = re.match(r'^{([^}]+)}', s3_info.plaintext_hash).group(1)
