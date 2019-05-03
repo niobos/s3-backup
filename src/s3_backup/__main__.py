@@ -57,7 +57,13 @@ def main(args=None):
                              "Note that the command receives the filename on stdin, "
                              "without a trailing newline, and should output without a trailing newline. "
                              "Available environment variables: $FILENAME. E.g. `echo -n \"$FILENAME.gpg\"` "
-                             "will append a .gpg extension.")
+                             "will append a .gpg extension. "
+                             "The command can indicate 3 possible scenarios: (1) it exits with exit code 0 "
+                             "and outputs the desired filename to stdout. (2) it exits with exit code 0 "
+                             "and outputs nothing to stdout; this indicates the file should be considered to "
+                             "not exist. (3) it exits with exit code 124 and outputs the desired filename to "
+                             "stdout; this indicates the file should be ignored (assumed to be up-to-date on "
+                             "S3 without checking).")
 
     parser.add_argument('--verbose', '-v', action='count', default=0,
                         help="Increase verbosity, can be used multiple times for increased verbosity "

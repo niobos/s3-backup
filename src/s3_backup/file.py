@@ -68,6 +68,14 @@ class DataXform:
         return data
 
 
+class IgnoreThisFile(Exception):
+    pass
+
+
+class FileDoesNotExist(Exception):
+    pass
+
+
 class File:
     filename_xform_command = None
     data_xform_command = None
@@ -88,6 +96,7 @@ class File:
         self._s3_client = s3_client
 
         self._cache = dict()
+        self.ignore = False
 
     @property
     def s3_client(self):
@@ -113,9 +122,13 @@ class File:
             input=self.relative_path,
             encoding='utf-8',
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             env=xform_env,
         )
 
+        if xform.returncode == 124:
+            # special case: ignore this file
+            self.ignore = True
         if xform.returncode != 0:
             raise OSError(xform.stderr)
 
@@ -150,6 +163,13 @@ class File:
         return self.digest('SHA256')
 
     def upload_needed(self) -> typing.Union[bool, str]:
+        if self.ignore:
+            # file is ignored, never upload
+            return False
+        if self.s3_key == "":
+            # the empty key is handled as "pretend file doesn't exist" => never upload
+            return False
+
         try:
             s3_info = self.s3_cache[self.s3_key]
         except KeyError:
