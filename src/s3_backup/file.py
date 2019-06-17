@@ -188,7 +188,7 @@ class File:
             algorithm = re.match(r'^{([^}]+)}', s3_info.plaintext_hash).group(1)
             my_digest = self.digest(algorithm)
             if my_digest != s3_info.plaintext_hash:
-                return f"different hash ({my_digest} != {s3_info.plaintext_hash})"
+                return f"more recent locally & different hash ({my_digest} != {s3_info.plaintext_hash})"
         except (AttributeError,  # regex doesn't match
                 TypeError,  # plaintext_hash is None
                 ValueError,  # algorithm isn't known
