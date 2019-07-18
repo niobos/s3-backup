@@ -182,7 +182,15 @@ class File:
             local_mtime = datetime.datetime.fromtimestamp(self.stat.st_mtime)
             if local_mtime < s3_info.s3_modification_time:
                 return False  # mtimes are trustworthy, no need to check hash
-            # else: verify digest
+            else:
+                # newer mtime. Verify digest to see if we need to upload.
+                # Bump the locally cached mtime of the S3 object:
+                # Either the digest will mismatch, and we're in the "do_upload"
+                # case. We'll override the cache info anyway
+                # In the "match" case, we can save ourselves from verifying the
+                # digest every time we run if we note the newer mtime.
+                s3_info.s3_modification_time = datetime.datetime.now()
+                self.s3_cache[self.s3_key] = s3_info
 
         try:
             algorithm = re.match(r'^{([^}]+)}', s3_info.plaintext_hash).group(1)
