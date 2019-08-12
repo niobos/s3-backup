@@ -14,14 +14,6 @@ from .s3cache import S3cache, S3ObjectInfo
 logger = logging.getLogger(__name__)
 
 
-def cached(method):
-    def check_cache(self, *args, **kwargs):
-        if method.__name__ not in self._cache:
-            self._cache[method.__name__] = method(self, *args, **kwargs)
-        return self._cache[method.__name__]
-    return check_cache
-
-
 class DataXform:
     """
     Helper class to write Upload an S3 object while its content is generated on
@@ -74,6 +66,19 @@ class IgnoreThisFile(Exception):
 
 class FileDoesNotExist(Exception):
     pass
+
+
+def cached(method):
+    """
+    Decorator to store the result of a method call in the object itself
+    :param method:
+    :return:
+    """
+    def check_cache(self, *args, **kwargs):
+        if method.__name__ not in self._cache:
+            self._cache[method.__name__] = method(self, *args, **kwargs)
+        return self._cache[method.__name__]
+    return check_cache
 
 
 class File:

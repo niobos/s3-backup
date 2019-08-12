@@ -9,6 +9,7 @@ import humanize
 from .__meta__ import __version__  # export package-wide
 from .file import File, IgnoreThisFile, FileDoesNotExist
 from .s3cache import S3cache
+from .stats import Stats
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ def do_sync(
 
     logger.info("Beginning scan of local filesystem")
     cache.clear_flags()
+    stats = Stats()
     for relative_filename in list_files(local_path):
         logger.log(logging.INFO-1, f"Processing `{relative_filename}`")
 
@@ -65,6 +67,7 @@ def do_sync(
 
         logger.log(logging.INFO-1, f"Transformed filename `{relative_filename}` => `{file.s3_key}`"
                                    f"{ 'IGNORED' if file.ignore else ''}")
+        stats.scan(file.plaintext_size)
 
         reason = file.upload_needed()
         logger.log(logging.INFO-1, f"Should upload? {reason}")
@@ -73,6 +76,7 @@ def do_sync(
                         f"{humanize.naturalsize(file.plaintext_size, binary=True)}) "
                         f"to s3://{file.s3_bucket}/{file.s3_key} ({reason})")
             file.do_upload(storage_class=storage_class)
+            stats.upload(file.plaintext_size)
 
         if file.s3_key != "":
             # s3_key == "" indicates this file should be assumed not to exist locally
@@ -86,7 +90,9 @@ def do_sync(
             Bucket=s3_bucket,
             Key=key,
         )
+        stats.delete()
         del cache[key]
     logger.info("Delete done")
 
+    logger.info(stats.summary())
     logger.info(f"S3 cache contains: {cache.summary()}")
