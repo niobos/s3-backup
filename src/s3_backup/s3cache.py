@@ -34,15 +34,55 @@ class S3cache:
         self._upgrade_schema()  # may raise
 
     def _upgrade_schema(self):
+        cursor = self.cache_db.execute("SELECT `name` FROM `sqlite_master` WHERE `type`='table' AND `name`='s3_object_info';")
+        table_exists = cursor.fetchone()
+        if table_exists is not None:
+            # v2 exists, done
+            return
+
         cursor = self.cache_db.execute("SELECT `name` FROM `sqlite_master` WHERE `type`='table' AND `name`='s3_cache';")
         table_exists = cursor.fetchone()
         if table_exists is not None:
-            # v1 exists, done
+            logger.warning("Upgrading cache schema from v1 -> v2...")
+            with self.cache_db as transaction:
+                transaction.execute("BEGIN TRANSACTION")  # python only inserts a BEGIN when INSERT'ing
+                self._create_s3_object_info_table(transaction)
+                self._create_s3_metadata_table(transaction)
+                transaction.execute("INSERT INTO `s3_object_info` "
+                                    "(`key`, `size`, `mtime`) "
+                                    "SELECT `key`, `size`, `mtime` "
+                                    "FROM `s3_cache`;")
+                transaction.execute("INSERT INTO `s3_metadata` "
+                                    "(`key`, `name`, `value`) "
+                                    "SELECT `key`, 'plaintext-size', `plaintext_size`"
+                                    "FROM `s3_cache`;")
+                transaction.execute("INSERT INTO `s3_metadata` "
+                                    "(`key`, `name`, `value`) "
+                                    "SELECT `key`, 'plaintext-hash', `plaintext_hash`"
+                                    "FROM `s3_cache`;")
+                transaction.execute("DROP TABLE `s3_cache`;")
             return
 
-        # Check for previous versions
-
         raise ValueError("No cache found")
+
+    @staticmethod
+    def _create_s3_object_info_table(transaction):
+        transaction.execute(
+            "CREATE TABLE `s3_object_info` ("
+            "key TEXT PRIMARY KEY NOT NULL, "
+            "size INTEGER NOT NULL, "
+            "mtime INTEGER NOT NULL"
+            ");")
+
+    @staticmethod
+    def _create_s3_metadata_table(transaction):
+        transaction.execute(
+            "CREATE TABLE `s3_metadata` ("
+            "key TEXT NOT NULL, "
+            "name TEXT NOT NULL, "
+            "value TEXT NOT NULL, "
+            "PRIMARY KEY(key, name)"
+            ");")
 
     @classmethod
     def initialize_cache(cls,
@@ -56,15 +96,10 @@ class S3cache:
         logger.info("Filling S3 cache...")
         with cache_db as transaction:  # auto-commit at end of block
             transaction.execute("BEGIN TRANSACTION")  # python only inserts a BEGIN when INSERT'ing
-            transaction.execute("DROP TABLE IF EXISTS `s3_cache`;")
-            transaction.execute(
-                "CREATE TABLE `s3_cache` ("
-                "key TEXT PRIMARY KEY NOT NULL, "
-                "size INTEGER NOT NULL, "
-                "mtime INTEGER NOT NULL, "
-                "plaintext_size INTEGER, "
-                "plaintext_hash TEXT"
-                ");")
+            transaction.execute("DROP TABLE IF EXISTS `s3_object_info`;")
+            transaction.execute("DROP TABLE IF EXISTS `s3_metadata`;")
+            cls._create_s3_object_info_table(transaction)
+            cls._create_s3_metadata_table(transaction)
 
             list_bucket_paginator = s3_client.get_paginator('list_objects_v2')
             for i, page in enumerate(list_bucket_paginator.paginate(Bucket=bucket)):
@@ -74,44 +109,63 @@ class S3cache:
                         Bucket=bucket,
                         Key=s3_object['Key'],
                     )
-                    values = {
-                        "key": s3_object['Key'],
-                        "size": object_info['ContentLength'],
-                        "mtime": int(object_info['LastModified'].timestamp()),
-                        "plaintext_size": int_or_none(object_info.get('Metadata', {}).get('plaintext-size')),
-                        "plaintext_hash": object_info.get('Metadata', {}).get('plaintext-hash'),
-                    }
-                    logger.log(logging.INFO-2, repr(values))
-                    transaction.execute("INSERT OR REPLACE INTO `s3_cache` "
-                                        "(" + ", ".join([f"`{_}`" for _ in values.keys()]) + ")" +
+                    transaction.execute("INSERT INTO `s3_object_info` "
+                                        "(`key`, `size`, `mtime`)" +
                                         "VALUES "
-                                        "(" + ", ".join([f":{_}" for _ in values.keys()]) + ")",
-                                        values)
+                                        "(:key, :size, :mtime)",
+                                        {
+                                            "key": s3_object['Key'],
+                                            "size": object_info['ContentLength'],
+                                            "mtime": int(object_info['LastModified'].timestamp()),
+                                        })
+
+                    for name, value in object_info.get('Metadata', {}).items():
+                        transaction.execute("INSERT INTO `s3_metadata` "
+                                            "(`key`, `name`, `value`)" +
+                                            "VALUES "
+                                            "(:key, :name, :value)",
+                                            {
+                                                "key": s3_object['Key'],
+                                                "name": name,
+                                                "value": value
+                                            })
 
         self = cls(cache_db)
         logger.log(logging.INFO-1, f"Cache filled: {self.summary()}")
         return self
 
     def summary(self) -> str:
-        summary = self.cache_db.execute("SELECT COUNT(`key`), SUM(`size`) FROM `s3_cache`;").fetchone()
+        summary = self.cache_db.execute("SELECT COUNT(`key`), SUM(`size`) FROM `s3_object_info`;").fetchone()
         size = summary[1]
         if size is None:
             size = 0
         return f"{summary[0]} files, {humanize.naturalsize(size, binary=True)}"
 
     def __getitem__(self, key: str) -> S3ObjectInfo:
-        cursor = self.cache_db.execute("SELECT `size`, `mtime`, `plaintext_size`, `plaintext_hash` "
-                                       "FROM `s3_cache` "
+        cursor = self.cache_db.execute("SELECT `size`, `mtime` "
+                                       "FROM `s3_object_info` "
                                        "WHERE `key` = :key;",
                                        {'key': key})
         row = cursor.fetchone()
         if row is None:
             raise KeyError(f"{key} not found (in cache)")
+
+        cursor = self.cache_db.execute("SELECT `name`, `value` "
+                                       "FROM `s3_metadata` "
+                                       "WHERE `key` = :key;",
+                                       {'key': key})
+        metadata = {}
+        while True:
+            metadatarow = cursor.fetchone()
+            if metadatarow is None:
+                break
+            metadata[metadatarow[0]] = metadatarow[1]
+
         return S3ObjectInfo(
             s3_size=row[0],
             s3_modification_time=datetime.datetime.fromtimestamp(row[1]),
-            plaintext_size=row[2],
-            plaintext_hash=row[3],
+            plaintext_size=int(metadata.get('plaintext-size', '-1')),
+            plaintext_hash=metadata.get('plaintext-hash', ''),
         )
 
     def __setitem__(self, key: str, value: S3ObjectInfo) -> None:
@@ -120,25 +174,39 @@ class S3cache:
                 "key": key,
                 "size": value.s3_size,
                 "mtime": int(value.s3_modification_time.timestamp()),
-                "plaintext_size": value.plaintext_size,
-                "plaintext_hash": value.plaintext_hash,
             }
-            transaction.execute("INSERT OR REPLACE INTO `s3_cache` "
+            transaction.execute("INSERT OR REPLACE INTO `s3_object_info` "
                                 "(" + ", ".join([f"`{_}`" for _ in values.keys()]) + ")" +
                                 "VALUES "
                                 "(" + ", ".join([f":{_}" for _ in values.keys()]) + ")",
                                 values)
 
+            transaction.execute("DELETE FROM `s3_metadata` WHERE `key` = :key;", {'key': key})
+            metadata = {
+                "plaintext-size": value.plaintext_size,
+                "plaintext-hash": value.plaintext_hash,
+            }
+            for name, value in metadata.items():
+                transaction.execute("INSERT INTO `s3_metadata` "
+                                    "(`key`, `name`, `value`)" +
+                                    "VALUES "
+                                    "(:key, :name, :value)",
+                                    {"key": key, "name": name, "value": value})
+
     def __delitem__(self, key: str) -> None:
         with self.cache_db as transaction:
-            transaction.execute("DELETE FROM `s3_cache` WHERE `key` = :key;", {'key': key})
+            transaction.execute("BEGIN TRANSACTION")  # python only inserts a BEGIN when INSERT'ing
+            transaction.execute("DELETE FROM `s3_object_info` WHERE `key` = :key;", {'key': key})
+            transaction.execute("DELETE FROM `s3_metadata` WHERE `key` = :key;", {'key': key})
 
     def __contains__(self, item: str) -> bool:
-        try:
-            self.__getitem__(item)
-            return True
-        except KeyError:
-            return False
+        cursor = self.cache_db.execute("SELECT 1 "
+                                       "FROM `s3_object_info` "
+                                       "WHERE `key` = :key "
+                                       "LIMIT 1;",
+                                       {'key': item})
+        row = cursor.fetchone()
+        return row is not None
 
     def clear_flags(self) -> None:
         with self.cache_db as transaction:
@@ -151,7 +219,7 @@ class S3cache:
             transaction.execute("INSERT INTO `flag` (`key`) VALUES (:key);", {'key': key})
 
     def iterate_unflagged(self) -> typing.Generator[str, None, None]:
-        cursor = self.cache_db.execute("SELECT `key` FROM `s3_cache` "
+        cursor = self.cache_db.execute("SELECT `key` FROM `s3_object_info` "
                                        "WHERE `key` NOT IN ("
                                        "SELECT `key` FROM `flag`"
                                        ")")

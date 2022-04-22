@@ -69,7 +69,7 @@ def main(args=None):
                         help="Increase verbosity, can be used multiple times for increased verbosity "
                              "(up to 11 times)")
 
-    parser.add_argument('--no-trust-mtime',
+    parser.add_argument('--no-trust-mtime', action='store_true',
                         help="Do not trust file modification time to identify if a file needs uploading. "
                              "By default, a file will only be uploaded if the modification time is more "
                              "recent than the S3 object or if the size is different. "

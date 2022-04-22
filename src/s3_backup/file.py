@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class DataXform:
     """
-    Helper class to write Upload an S3 object while its content is generated on
+    Helper class to Upload an S3 object while its content is generated on
     the fly.
 
     s3_client.upload_fileobj() will read() from the given object when it needs

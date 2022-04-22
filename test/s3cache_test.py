@@ -23,6 +23,7 @@ def test_fill_cache():
         Metadata={
             'plaintext-size': '5',
             'plaintext-hash': '{rand}abcde',
+            'other': 'foobar',
         }
     )
     s3_client.put_object(
@@ -42,20 +43,29 @@ def test_fill_cache():
         s3_client=s3_client,
     )
 
-    rows = sqlite_db.execute("SELECT `key`, `size`, `plaintext_size` FROM `s3_cache` ORDER BY `key`;").fetchall()
+    rows = sqlite_db.execute("SELECT `key`, `size` FROM `s3_object_info` ORDER BY `key`;").fetchall()
     assert len(rows) == 2
 
     assert rows[0][0] == '"missing metadata"'
     assert rows[0][1] == 5
     assert c['"missing metadata"'].s3_size == 5
-    assert rows[0][2] is None
-    assert c['"missing metadata"'].plaintext_size is None
+    # assert rows[0][2] is None
+    # assert c['"missing metadata"'].plaintext_size is None
 
     assert rows[1][0] == 'a'
     assert rows[1][1] == 6
     assert c['a'].s3_size == 6
-    assert rows[1][2] == 5
-    assert c['a'].plaintext_size == 5
+    # assert rows[1][2] == 5
+    # assert c['a'].plaintext_size == 5
+
+    metadata = sqlite_db.execute("SELECT `name`, `value` FROM `s3_metadata` WHERE `key` = \"a\" ORDER BY `name`;").fetchall()
+    assert len(metadata) == 3
+    assert metadata[0][0] == "other"
+    assert metadata[0][1] == "foobar"
+    assert metadata[1][0] == "plaintext-hash"
+    assert metadata[1][1] == "{rand}abcde"
+    assert metadata[2][0] == "plaintext-size"
+    assert metadata[2][1] == "5"
 
     assert 'a' in c
 
@@ -76,9 +86,9 @@ def test_flagging():
         s3_client=s3_client,
     )
 
-    c['a'] = S3ObjectInfo(1, datetime.datetime.now())
-    c['b'] = S3ObjectInfo(2, datetime.datetime.now())
-    c['c'] = S3ObjectInfo(3, datetime.datetime.now())
+    c['a'] = S3ObjectInfo(1, datetime.datetime.now(), 5, "")
+    c['b'] = S3ObjectInfo(2, datetime.datetime.now(), 5, "")
+    c['c'] = S3ObjectInfo(3, datetime.datetime.now(), 5, "")
 
     c.clear_flags()
     c.flag('a')

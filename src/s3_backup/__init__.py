@@ -43,6 +43,7 @@ def do_sync(
 
     try:
         cache = S3cache(cache_db=cache_db)
+        logger.info("Cache opened: " + cache.summary())
     except ValueError:
         logger.warning("No cache found, doing full scan of S3...")
         cache = S3cache.initialize_cache(
@@ -94,5 +95,5 @@ def do_sync(
         del cache[key]
     logger.info("Delete done")
 
-    logger.info(stats.summary())
-    logger.info(f"S3 cache contains: {cache.summary()}")
+    logger.log(logging.INFO+1, stats.summary())
+    logger.log(logging.INFO+1, f"S3 cache contains: {cache.summary()}")
