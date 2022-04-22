@@ -180,8 +180,9 @@ class File:
         except KeyError:
             return 'does not exist on S3'  # key not found in S3 cache
 
-        if self.stat.st_size != s3_info.plaintext_size:
-            return f"different size ({self.stat.st_size} != {s3_info.plaintext_size}"
+        s3_plaintext_size = int(s3_info.metadata.get('plaintext-size', '-1'))
+        if self.stat.st_size != s3_plaintext_size:
+            return f"different size ({self.stat.st_size} != {s3_plaintext_size}"
 
         if self.trust_mtime:
             local_mtime = datetime.datetime.fromtimestamp(self.stat.st_mtime)
@@ -198,10 +199,11 @@ class File:
                 self.s3_cache[self.s3_key] = s3_info
 
         try:
-            algorithm = re.match(r'^{([^}]+)}', s3_info.plaintext_hash).group(1)
+            plaintext_hash = s3_info.metadata.get('plaintext-hash', '')
+            algorithm = re.match(r'^{([^}]+)}', plaintext_hash).group(1)
             my_digest = self.digest(algorithm)
-            if my_digest != s3_info.plaintext_hash:
-                return f"more recent locally & different hash ({my_digest} != {s3_info.plaintext_hash})"
+            if my_digest != plaintext_hash:
+                return f"more recent locally & different hash ({my_digest} != {plaintext_hash})"
         except (AttributeError,  # regex doesn't match
                 TypeError,  # plaintext_hash is None
                 ValueError,  # algorithm isn't known
@@ -236,6 +238,8 @@ class File:
         self.s3_cache[self.s3_key] = S3ObjectInfo(
             s3_size=f.size,
             s3_modification_time=datetime.datetime.now(),
-            plaintext_size=self.plaintext_size,
-            plaintext_hash=self.plaintext_hash,
+            metadata={
+                'plaintext-size': self.plaintext_size,
+                'plaintext-hash': self.plaintext_hash,
+            }
         )

@@ -39,8 +39,10 @@ def test_upload_needed():
         s3_cache['relative'] = S3ObjectInfo(
             s3_size=6,
             s3_modification_time=datetime.datetime.now(),
-            plaintext_size=11,
-            plaintext_hash="{rand}xxx",
+            metadata={
+                'plaintext-size': str(11),
+                'plaintext-hash': "{rand}xxx",
+            }
         )
         assert not f.upload_needed()
 
@@ -63,7 +65,7 @@ def test_upload_needed():
 
         frozen_datetime.tick(1)
         s3_cache['relative'].s3_modification_time = datetime.datetime.now()
-        s3_cache['relative'].plaintext_size = 12
+        s3_cache['relative'].metadata['plaintext-size'] = str(12)
         assert not f.upload_needed()
 
         frozen_datetime.tick(1)
@@ -110,6 +112,6 @@ def test_upload(testfile):
     assert s3_file['Metadata']['plaintext-hash'] == plaintext_hash
 
     assert testfile_name in s3_cache
-    assert s3_cache[testfile_name].plaintext_size == len(testfile[1])
-    assert s3_cache[testfile_name].plaintext_hash == plaintext_hash
+    assert s3_cache[testfile_name].metadata['plaintext-size'] == str(len(testfile[1]))
+    assert s3_cache[testfile_name].metadata['plaintext-hash'] == plaintext_hash
     assert s3_cache[testfile_name].s3_size == len(testfile[1])

@@ -21,8 +21,7 @@ def int_or_none(something: typing.Any) -> typing.Optional[int]:
 class S3ObjectInfo:
     s3_size: int = None
     s3_modification_time: datetime.datetime = None
-    plaintext_size: int = None
-    plaintext_hash: str = None
+    metadata: typing.Mapping[str, str] = {}
 
 
 class S3cache:
@@ -164,8 +163,7 @@ class S3cache:
         return S3ObjectInfo(
             s3_size=row[0],
             s3_modification_time=datetime.datetime.fromtimestamp(row[1]),
-            plaintext_size=int(metadata.get('plaintext-size', '-1')),
-            plaintext_hash=metadata.get('plaintext-hash', ''),
+            metadata=metadata,
         )
 
     def __setitem__(self, key: str, value: S3ObjectInfo) -> None:
@@ -182,11 +180,7 @@ class S3cache:
                                 values)
 
             transaction.execute("DELETE FROM `s3_metadata` WHERE `key` = :key;", {'key': key})
-            metadata = {
-                "plaintext-size": value.plaintext_size,
-                "plaintext-hash": value.plaintext_hash,
-            }
-            for name, value in metadata.items():
+            for name, value in value.metadata.items():
                 transaction.execute("INSERT INTO `s3_metadata` "
                                     "(`key`, `name`, `value`)" +
                                     "VALUES "
