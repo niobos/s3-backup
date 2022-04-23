@@ -86,9 +86,9 @@ def test_flagging():
         s3_client=s3_client,
     )
 
-    c['a'] = S3ObjectInfo(1, datetime.datetime.now())
-    c['b'] = S3ObjectInfo(2, datetime.datetime.now())
-    c['c'] = S3ObjectInfo(3, datetime.datetime.now())
+    c['a'] = S3ObjectInfo(1, datetime.datetime.now(), {})
+    c['b'] = S3ObjectInfo(2, datetime.datetime.now(), {})
+    c['c'] = S3ObjectInfo(3, datetime.datetime.now(), {})
 
     c.clear_flags()
     c.flag('a')

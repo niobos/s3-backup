@@ -49,7 +49,6 @@ setup(
     install_requires=[
         'boto3',
         'humanize',
-        'attrs',
     ],
     extras_require={
         'dev': [

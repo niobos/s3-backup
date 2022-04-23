@@ -1,9 +1,9 @@
+import dataclasses
 import datetime
 import logging
 import sqlite3
 import typing
 
-import attr
 import boto3
 import humanize
 
@@ -11,17 +11,11 @@ import humanize
 logger = logging.getLogger(__name__)
 
 
-def int_or_none(something: typing.Any) -> typing.Optional[int]:
-    if something is None:
-        return None
-    return int(something)
-
-
-@attr.s(auto_attribs=True, slots=True)
+@dataclasses.dataclass
 class S3ObjectInfo:
-    s3_size: int = None
-    s3_modification_time: datetime.datetime = None
-    metadata: typing.Dict[str, str] = {}
+    s3_size: int
+    s3_modification_time: datetime.datetime
+    metadata: typing.Dict[str, str]
 
 
 class S3cache:
