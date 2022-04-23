@@ -3,7 +3,7 @@ import logging
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__, File
+from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, BackupItem, DataTransform
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
 log_file_handler = logging.StreamHandler()
@@ -11,6 +11,7 @@ log_file_handler.setFormatter(logging.Formatter(
     fmt="[%(name)s %(levelname)s] %(message)s"
 ))
 logging.getLogger(None).addHandler(log_file_handler)
+logger = logging.getLogger(None)
 
 
 def main(args=None):
@@ -81,17 +82,31 @@ def main(args=None):
     for i in range(0, args.verbose):
         logging.getLogger(None).setLevel(logging.getLogger(None).level - 1)
 
-    File.filename_xform_command = args.filename_xform
-    File.data_xform_command = args.data_xform
     if args.no_trust_mtime:
-        File.trust_mtime = False
+        LocalFile.trust_mtime = False
+
+    orig_file_list = FileScanner(args.path)
+    file_list = orig_file_list
+
+    if args.filename_xform:
+        file_list = BackupItem.wrap_iter(
+            iter(file_list),
+            lambda item: KeyTransform(args.filename_xform, item)
+        )
+
+    if args.data_xform:
+        file_list = BackupItem.wrap_iter(
+            iter(file_list),
+            lambda item: DataTransform(args.data_xform, item)
+        )
 
     s3_backup.do_sync(
-        local_path=args.path,
+        file_list=iter(file_list),
         s3_bucket=args.bucket,
         cache_db=sqlite3.connect(args.cache_file),
         storage_class=args.storage_class,
     )
+    logger.log(logging.INFO+1, orig_file_list.summary())
 
 
 if __name__ == '__main__':

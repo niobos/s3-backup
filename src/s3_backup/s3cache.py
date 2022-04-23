@@ -21,7 +21,7 @@ def int_or_none(something: typing.Any) -> typing.Optional[int]:
 class S3ObjectInfo:
     s3_size: int = None
     s3_modification_time: datetime.datetime = None
-    metadata: typing.Mapping[str, str] = {}
+    metadata: typing.Dict[str, str] = {}
 
 
 class S3cache:
@@ -92,7 +92,7 @@ class S3cache:
         if s3_client is None:
             s3_client = boto3.client('s3')
 
-        logger.info("Filling S3 cache...")
+        logger.info(f"Filling S3 cache for s3://{bucket}...")
         with cache_db as transaction:  # auto-commit at end of block
             transaction.execute("BEGIN TRANSACTION")  # python only inserts a BEGIN when INSERT'ing
             transaction.execute("DROP TABLE IF EXISTS `s3_object_info`;")
@@ -108,15 +108,17 @@ class S3cache:
                         Bucket=bucket,
                         Key=s3_object['Key'],
                     )
+                    data = {
+                        "key": s3_object['Key'],
+                        "size": object_info['ContentLength'],
+                        "mtime": int(object_info['LastModified'].timestamp()),
+                    }
+                    logger.log(logging.INFO-2, repr(data))
                     transaction.execute("INSERT INTO `s3_object_info` "
                                         "(`key`, `size`, `mtime`)" +
                                         "VALUES "
                                         "(:key, :size, :mtime)",
-                                        {
-                                            "key": s3_object['Key'],
-                                            "size": object_info['ContentLength'],
-                                            "mtime": int(object_info['LastModified'].timestamp()),
-                                        })
+                                        data)
 
                     for name, value in object_info.get('Metadata', {}).items():
                         transaction.execute("INSERT INTO `s3_metadata` "

@@ -8,14 +8,11 @@ import botocore.errorfactory
 import moto
 import pytest
 
-from s3_backup import do_sync, File, S3cache
+from s3_backup import do_sync, FileScanner, KeyTransform, DataTransform, BackupItem
 
 
 @moto.mock_s3
 def test_sync(tmp_path):
-    File.filename_xform_command = 'echo -n "${FILENAME}.invcase"'
-    File.data_xform_command = "tr '[A-Za-z]' '[a-zA-Z]'"
-
     bucket_name = 'test'
 
     boto_session = boto3.Session(aws_access_key_id="dummy", aws_secret_access_key="dummy", region_name="us-east-1")
@@ -52,8 +49,18 @@ def test_sync(tmp_path):
 
     s3_cache = sqlite3.Connection(':memory:')
 
+    orig_file_list = FileScanner(tmp_path)
+    file_list = BackupItem.wrap_iter(
+        iter(orig_file_list),
+        lambda item: KeyTransform('echo -n "${KEY}.invcase"', item)
+    )
+    file_list = BackupItem.wrap_iter(
+        iter(file_list),
+        lambda item: DataTransform("tr '[A-Za-z]' '[a-zA-Z]'", item)
+    )
+
     do_sync(
-        local_path=str(tmp_path),
+        file_list=iter(file_list),
         s3_bucket=bucket_name,
         cache_db=s3_cache,
         s3_client=s3_client,
