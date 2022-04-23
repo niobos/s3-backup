@@ -57,3 +57,14 @@ class KeyTransform(BackupItem):
             modification_time=modification_time,
             metadata=metadata,
         )
+
+    @staticmethod
+    def wrap_iter(
+            it: typing.Iterator["BackupItem"],
+            wrapper: typing.Callable[["BackupItem"], "BackupItem"],
+    ) -> typing.Generator["BackupItem", None, None]:
+        for item in it:
+            wrapped_item = wrapper(item)
+            if wrapped_item.key() == "":
+                continue
+            yield wrapped_item
