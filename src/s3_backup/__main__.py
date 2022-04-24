@@ -99,12 +99,12 @@ def main(args=None):
                              "Enabling this option will only use filesize and hash to be used to "
                              "decide if uploading is needed.")
 
-    parser.add_argument('--group-files-smaller-than',
+    parser.add_argument('--group-files-smaller-than', metavar="SIZE",
                         action=AddOptionValueTuple, dest='filter',
                         help="Group files smaller than the given size together. "
                              "Note that this filter needs to know the size of the files beforehand, "
                              "so it should be placed before any data-altering filters such as data-xform.")
-    parser.add_argument('--data-xform',
+    parser.add_argument('--data-xform', metavar="COMMAND",
                         action=AddOptionValueTuple, dest='filter',
                         help="Use the given command to transform the data before uploading. "
                              "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"KEY\" -` "
@@ -113,7 +113,7 @@ def main(args=None):
                              "the transformed data to its stdout. The command is passed through "
                              "/bin/bash, so you can use basic shell magic. The following environment "
                              "variables are available to the command(line): $KEY")
-    parser.add_argument('--filename-xform',
+    parser.add_argument('--filename-xform', metavar="COMMAND",
                         action=AddOptionValueTuple, dest='filter',
                         help="Use the given command to ransform the filename/key of the objects. "
                              "Make sure this transform is a consistent one-to-one mapping! "
