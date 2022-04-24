@@ -15,21 +15,21 @@ class KeyTransform(BackupItem):
             underlying: BackupItem,
     ):
         self.underlying = underlying
-        self.filename_xform_command = filename_xform_command
+        self.xform_command = filename_xform_command
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {repr(self.underlying)}>"
+        return f"<{self.__class__.__name__} xform={self.xform_command} {repr(self.underlying)}>"
 
     def __str__(self) -> str:
         return repr(self)
 
     @functools.lru_cache(maxsize=None)
     def key(self) -> str:
-        logger.log(logging.INFO-2, f"spawning `{self.filename_xform_command}`")
+        logger.log(logging.INFO - 2, f"spawning `{self.xform_command}`")
         env = os.environ.copy()
         env['KEY'] = self.underlying.key()
         xform = subprocess.run(
-            ["/bin/bash", "-c", self.filename_xform_command],
+            ["/bin/bash", "-c", self.xform_command],
             input=self.underlying.key(),
             encoding='utf-8',
             stdout=subprocess.PIPE,
