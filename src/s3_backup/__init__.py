@@ -55,6 +55,7 @@ def do_sync(
         s3_bucket: str,
         cache_db: sqlite3.Connection,
         storage_class: str = "STANDARD",
+        dry_run: bool = False,
         s3_client=None,
 ):
     if s3_client is None:
@@ -90,13 +91,15 @@ def do_sync(
         logger.log(logging.INFO-1, f"Should upload? {upload_needed.name}")
         if upload_needed == BackupItem.ShouldUpload.DoUpload:
             logger.info(f"Uploading {item} "
-                        f"to s3://{s3_bucket}/{item.key()} ({upload_needed.name})")
+                        f"to s3://{s3_bucket}/{item.key()} ({upload_needed.name})"
+                        f"{' DRY RUN' if dry_run else ''}")
             size = do_upload(
                 item,
                 s3_bucket,
                 s3_client,
                 cache,
                 storage_class,
+                dry_run,
             )
             stats.upload(size)
 
@@ -104,13 +107,14 @@ def do_sync(
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
-        logger.info(f"Deleting `{key}`")
-        s3_client.delete_object(
-            Bucket=s3_bucket,
-            Key=key,
-        )
+        logger.info(f"Deleting `{key}`{' DRY RUN' if dry_run else ''}")
+        if not dry_run:
+            s3_client.delete_object(
+                Bucket=s3_bucket,
+                Key=key,
+            )
+            del cache[key]
         stats.delete()
-        del cache[key]
     logger.info("Delete done")
 
     logger.log(logging.INFO+1, stats.summary())
@@ -133,7 +137,9 @@ def do_upload(
         s3_bucket: str,
         s3_client,
         s3_cache: S3cache,
-        storage_class: str = "STANDARD") -> int:
+        storage_class: str = "STANDARD",
+        dry_run: bool = False,
+) -> int:
     with item.fileobj() as f:
         counted_f = ByteCounter(f)
         metadata = item.metadata()
@@ -141,7 +147,15 @@ def do_upload(
         if isinstance(metadata.get('size'), BackupItem.SizeMetadata):
             del metadata['size']
 
-        _ = s3_client.upload_fileobj(
+        if dry_run:
+            while True:
+                _ = counted_f.read(1024)
+                if len(_) == 0:
+                    break
+            return counted_f.bytes
+        # else:
+
+        s3_client.upload_fileobj(
             Fileobj=counted_f,
             Bucket=s3_bucket,
             Key=item.key(),
@@ -154,7 +168,7 @@ def do_upload(
     s3_cache[item.key()] = S3ObjectInfo(
         s3_size=counted_f.bytes,
         s3_modification_time=datetime.datetime.now(),
-        metadata=metadata
+        metadata=metadata,
     )
 
     return counted_f.bytes
