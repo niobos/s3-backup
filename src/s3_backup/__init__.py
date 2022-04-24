@@ -91,9 +91,6 @@ def do_sync(
         )
         logger.log(logging.INFO-1, f"Should upload? {upload_needed.name}")
         if upload_needed == BackupItem.ShouldUpload.DoUpload:
-            logger.info(f"Uploading {item} "
-                        f"to s3://{s3_bucket}/{item.key()} ({upload_needed.name})"
-                        f"{' DRY RUN' if dry_run else ''}")
             size = do_upload(
                 item,
                 s3_bucket,
@@ -141,6 +138,9 @@ def do_upload(
         storage_class: str = "STANDARD",
         dry_run: bool = False,
 ) -> int:
+    logger.info(f"{'DRY RUN ' if dry_run else ''}"
+                f"Uploading {item} "
+                f"to s3://{s3_bucket}/{item.key()}")
     with item.fileobj() as f:
         counted_f = ByteCounter(f)
         metadata = item.metadata()
