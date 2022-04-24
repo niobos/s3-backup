@@ -83,10 +83,15 @@ class KeyTransformWrapper(BackupItemWrapper):
     ):
         super().__init__(underlying_it)
         self.xform_command = xform_command
+        self.skipped = 0
+
+    def summary(self) -> str:
+        return f"Skipped {self.skipped} files"
 
     def __iter__(self) -> typing.Generator[KeyTransform, None, None]:
         for item in self.underlying_it:
             wrapped_item = KeyTransform(self.xform_command, item)
             if wrapped_item.key() == "":
+                self.skipped += 1
                 continue
             yield wrapped_item
