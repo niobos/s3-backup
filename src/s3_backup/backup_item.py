@@ -52,3 +52,18 @@ class BackupItem(abc.ABC):
         previous upload.
         """
         raise NotImplementedError()
+
+
+class BackupItemWrapper(abc.ABC):
+    def __init__(
+            self,
+            underlying_it: typing.Iterator[BackupItem],
+    ):
+        self.underlying_it = underlying_it
+
+    def summary(self) -> str:
+        return ""
+
+    @abc.abstractmethod
+    def __iter__(self) -> typing.Generator[BackupItem, None, None]:
+        raise NotImplementedError()

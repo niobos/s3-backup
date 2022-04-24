@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class FileScanner:
     def __init__(self, base_path: typing.Union[pathlib.Path, str]):
-        self.base_path = str(pathlib.PurePath(base_path))
+        self.base_path = str(pathlib.PurePath(base_path))  # will never have a trailing /
         self.files_scanned = 0
         self.bytes_scanned = 0
 

@@ -4,6 +4,8 @@ import sqlite3
 
 import s3_backup
 from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, DataTransform
+from s3_backup.data_transform import DataTransformWrapper
+from s3_backup.key_transform import KeyTransformWrapper
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
 log_file_handler = logging.StreamHandler()
@@ -98,21 +100,21 @@ def main(args=None):
     if args.no_trust_mtime:
         LocalFile.trust_mtime = False
 
-    orig_file_list = FileScanner(args.path)
-    file_list = orig_file_list
+    filters = [FileScanner(args.path)]
+    file_list = iter(filters[-1])
 
     if args.filter is not None:
         for filter_name, value in args.filter:
             # Note: remember to close over `value`!
 
             if filter_name == '--filename-xform':
-                file_list = KeyTransform.wrap_iter(
+                f = KeyTransformWrapper(
                     iter(file_list),
                     value,
                 )
 
             elif filter_name == '--data-xform':
-                file_list = DataTransform.wrap_iter(
+                f = DataTransformWrapper(
                     iter(file_list),
                     value,
                 )
@@ -120,14 +122,20 @@ def main(args=None):
             else:
                 raise RuntimeError(f"Unrecognized filter {filter_name}")
 
+            filters.append(f)
+            file_list = iter(f)
+
+
     s3_backup.do_sync(
-        file_list=iter(file_list),
+        file_list=file_list,
         s3_bucket=args.bucket,
         cache_db=sqlite3.connect(args.cache_file),
         storage_class=args.storage_class,
         dry_run=args.dry_run,
     )
-    logger.log(logging.INFO+1, orig_file_list.summary())
+
+    for f in filters:
+        logger.log(logging.INFO+1, f"{f.__class__.__name__}:\n{f.summary()}")
 
 
 if __name__ == '__main__':
