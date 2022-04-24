@@ -11,11 +11,11 @@ from s3_backup.backup_item import BackupItem, logger
 class KeyTransform(BackupItem):
     def __init__(
             self,
-            filename_xform_command: str,
+            xform_command: str,
             underlying: BackupItem,
     ):
         self.underlying = underlying
-        self.xform_command = filename_xform_command
+        self.xform_command = xform_command
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} xform={self.xform_command} {repr(self.underlying)}>"
@@ -25,7 +25,7 @@ class KeyTransform(BackupItem):
 
     @functools.lru_cache(maxsize=None)
     def key(self) -> str:
-        logger.log(logging.INFO - 2, f"spawning `{self.xform_command}`")
+        logger.log(logging.INFO - 2, f"spawning `{self.xform_command}` to transform `{self.underlying.key()}`")
         env = os.environ.copy()
         env['KEY'] = self.underlying.key()
         xform = subprocess.run(
@@ -40,7 +40,9 @@ class KeyTransform(BackupItem):
         if xform.returncode != 0:
             raise OSError(xform.stderr)
 
-        return xform.stdout
+        new_key = xform.stdout
+        logger.log(logging.INFO - 2, f"New key: {new_key}")
+        return new_key
 
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
         return self.underlying.fileobj()
@@ -61,10 +63,10 @@ class KeyTransform(BackupItem):
     @staticmethod
     def wrap_iter(
             it: typing.Iterator["BackupItem"],
-            wrapper: typing.Callable[["BackupItem"], "BackupItem"],
+            xform_command: str,
     ) -> typing.Generator["BackupItem", None, None]:
         for item in it:
-            wrapped_item = wrapper(item)
+            wrapped_item = KeyTransform(xform_command, item)
             if wrapped_item.key() == "":
                 continue
             yield wrapped_item

@@ -52,11 +52,3 @@ class BackupItem(abc.ABC):
         previous upload.
         """
         raise NotImplementedError()
-
-    @staticmethod
-    def wrap_iter(
-            it: typing.Iterator["BackupItem"],
-            wrapper: typing.Callable[["BackupItem"], "BackupItem"],
-    ) -> typing.Generator["BackupItem", None, None]:
-        for item in it:
-            yield wrapper(item)

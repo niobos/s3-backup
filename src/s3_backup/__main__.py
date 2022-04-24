@@ -103,20 +103,18 @@ def main(args=None):
 
     if args.filter is not None:
         for filter_name, value in args.filter:
+            # Note: remember to close over `value`!
+
             if filter_name == '--filename-xform':
-                def wrapper(value):  # creates closure over value
-                    return lambda item: KeyTransform(value, item)
                 file_list = KeyTransform.wrap_iter(
                     iter(file_list),
-                    wrapper(value),
+                    value,
                 )
 
             elif filter_name == '--data-xform':
-                def wrapper(value):  # creates closure over value
-                    return lambda item: DataTransform(value, item)
                 file_list = DataTransform.wrap_iter(
                     iter(file_list),
-                    wrapper(value),
+                    value,
                 )
 
             else:
