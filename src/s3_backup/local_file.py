@@ -103,6 +103,9 @@ class LocalFile(BackupItem):
     def stat(self) -> os.stat_result:
         return os.stat(self.path)
 
+    def size(self) -> int:
+        return self.stat().st_size
+
     @functools.lru_cache()
     def digest(self, algorithm: str) -> str:
         digest = hashlib.new(algorithm)

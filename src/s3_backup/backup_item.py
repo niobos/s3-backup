@@ -53,6 +53,13 @@ class BackupItem(abc.ABC):
         """
         raise NotImplementedError()
 
+    def size(self) -> typing.Optional[int]:
+        """
+        If the size of the file is known, return it.
+        Otherwise return None
+        """
+        return None
+
 
 class BackupItemWrapper(abc.ABC):
     def __init__(

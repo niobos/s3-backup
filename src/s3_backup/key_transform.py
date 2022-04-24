@@ -44,6 +44,9 @@ class KeyTransform(BackupItem):
         logger.log(logging.INFO - 2, f"New key: {new_key}")
         return new_key
 
+    def size(self) -> typing.Optional[int]:
+        return self.underlying.size()
+
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
         return self.underlying.fileobj()
 
