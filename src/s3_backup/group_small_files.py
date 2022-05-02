@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os.path
 import typing
@@ -24,70 +25,93 @@ class GroupedItem():
         return f"<GroupedItem {self._key}: {self.underlying}>"
 
 
-def common_prefix(a: str, b: str) -> str:
-    return os.path.commonprefix([a, b])
+class Tree:
+    @dataclasses.dataclass
+    class Element:
+        key: str
+        size: int
+        item: BackupItem
+
+        def __lt__(self, other):
+            return self.key < other.key
+
+    def __init__(self, elements: typing.Iterable[BackupItem]):
+        self.elements = sorted((
+            Tree.Element(e.key(), e.size(), e)
+            for e in elements
+        ))
+        self.key_prefixes = {}  # children
+
+    def _split_off_children(self, min_size: int):
+        size = {}
+        char_start = 0
+        previous_first_char = ''
+        i = 0
+        while i < len(self.elements):
+            try:
+                first_char = self.elements[i].key[0]
+            except IndexError:
+                first_char = ''
+
+            if first_char != previous_first_char:
+                if previous_first_char != '' and \
+                        size[previous_first_char] > min_size:
+                    self._extract_child(slice(char_start, i), previous_first_char)
+                    i = char_start
+
+                previous_first_char = first_char
+                char_start = i
+
+            if first_char not in size:
+                size[first_char] = 0
+            size[first_char] += self.elements[i].size
+
+            i += 1
+
+        if size[previous_first_char] > min_size:
+            self._extract_child(slice(char_start, i), previous_first_char)
+
+        for prefix in list(self.key_prefixes.keys()):
+            child = self.key_prefixes[prefix]
+            child._split_off_children(min_size)
+            if len(child.elements) == 0 and len(child.key_prefixes) == 1:
+                # Pull 1 level up
+                only_prefix = next(iter(child.key_prefixes.keys()))
+                self.key_prefixes[prefix + only_prefix] = child.key_prefixes[only_prefix]
+                del self.key_prefixes[prefix]
+
+    def _extract_child(self, s: slice, prefix: str):
+        child = Tree([])  # Don't use constructor to avoid sorting again
+        prefix_len = len(prefix)
+        for el in self.elements[s]:
+            child.elements.append(Tree.Element(el.key[prefix_len:], el.size, el.item))
+        del self.elements[s]
+        self.key_prefixes[prefix] = child
+
+    def elements_size(self) -> int:
+        size = 0
+        for el in self.elements:
+            size += el.size
+        return size
 
 
-def group_files(files: typing.Iterator[BackupItem], min_size: int) -> typing.Iterator[GroupedItem]:
-    files = sorted(files, key=lambda item: item.key())
+def group_files(items: typing.Iterator[BackupItem], min_size: int) -> typing.Iterator[GroupedItem]:
+    items = Tree(items)
+    items._split_off_children(min_size)
 
-    def longest_entry_index(l: typing.Iterable[str]) -> int:
-        max_len = 0
-        max_len_i = None
-        for i, item in enumerate(l):
-            key_len = len(item)
-            if key_len > max_len:
-                max_len = key_len
-                max_len_i = i
-        return max_len_i
+    def recurse_tree(node: Tree, prefix: str = ''):
+        for child_prefix, child in node.key_prefixes.items():
+            for item in recurse_tree(child, prefix + child_prefix):
+                yield item
 
-    def get_longest_group():
-        # Find longest item in the list
-        max_len_i = longest_entry_index((e.key() for e in files))
+        if len(node.elements) > 0:
+            yield GroupedItem(
+                key=prefix,
+                underlying=[el.item for el in node.elements],
+                size=node.elements_size(),
+            )
 
-        matching_prefix = files[max_len_i].key()
-        size = files[max_len_i].size()
-        start = end = max_len_i
-        while size < min_size:
-            if start == 0 and end == len(files)-1:
-                # got full list, break without meeting min_size requirement
-                break
-
-            # Try to extend our sublist to either above or below (whichever has the longest common prefix)
-            if start > 0:
-                common_prefix_before_start = len(common_prefix(files[start-1].key(), files[end].key()))
-            else:
-                common_prefix_before_start = -1
-            if end < len(files)-1:
-                common_prefix_after_end = len(common_prefix(files[start].key(), files[end+1].key()))
-            else:
-                common_prefix_after_end = -1
-
-            if common_prefix_before_start >= common_prefix_after_end:
-                matching_prefix_len = common_prefix_before_start
-                matching_prefix = files[end].key()[0:matching_prefix_len]
-                while start > 0 and \
-                        files[start-1].key()[0:matching_prefix_len] == matching_prefix:
-                    size += files[start-1].size()
-                    start = start - 1
-            if common_prefix_before_start <= common_prefix_after_end:
-                matching_prefix_len = common_prefix_after_end
-                matching_prefix = files[start].key()[0:matching_prefix_len]
-                while end < len(files)-1 and \
-                        files[end+1].key()[0:matching_prefix_len] == matching_prefix:
-                    size += files[end+1].size()
-                    end = end + 1
-
-        g = GroupedItem(
-            key=matching_prefix,
-            underlying=files[start:(end+1)],
-            size=size,  # TODO: remove
-        )
-        del files[start:(end+1)]
-        return g
-
-    while len(files):
-        yield get_longest_group()
+    return recurse_tree(items)
 
 
 class GroupSmallFilesWrapper(BackupItemWrapper):
