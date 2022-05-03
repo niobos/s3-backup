@@ -2,6 +2,7 @@ import datetime
 import os
 import pathlib
 
+from s3_backup import global_settings
 from s3_backup.backup_item import BackupItem
 from s3_backup.local_file import LocalFile
 
@@ -44,13 +45,13 @@ def test_local_file_upload_if_mtime(testfile):
     m['hash'] = "wrong hash"
     tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
 
-    LocalFile.trust_mtime = True
+    global_settings.trust_mtime = True
     assert f.should_upload(tomorrow, m) == BackupItem.ShouldUpload.DontUpload
 
-    LocalFile.trust_mtime = False
+    global_settings.trust_mtime = False
     assert f.should_upload(tomorrow, m) == BackupItem.ShouldUpload.DoUpload
 
-    LocalFile.trust_mtime = True  # restore for next tests
+    global_settings.trust_mtime = True  # restore for next tests
 
 
 def test_local_file_touch_if_mtime(testfile):

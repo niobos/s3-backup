@@ -8,6 +8,7 @@ import typing
 import boto3
 import humanize
 
+from . import global_settings
 from .__meta__ import __version__  # export package-wide
 from .backup_item import BackupItem
 from .local_file import LocalFile
@@ -53,7 +54,6 @@ def do_sync(
         s3_bucket: str,
         cache_db: sqlite3.Connection,
         storage_class: str = "STANDARD",
-        dry_run: bool = False,
         s3_client=None,
 ):
     if s3_client is None:
@@ -95,7 +95,6 @@ def do_sync(
                 s3_client,
                 cache,
                 storage_class,
-                dry_run,
             )
             stats.upload(size)
 
@@ -103,8 +102,8 @@ def do_sync(
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
-        logger.info(f"Deleting `{key}`{' DRY RUN' if dry_run else ''}")
-        if not dry_run:
+        logger.info(f"{'DRY RUN ' if global_settings.dry_run else ''}Deleting `{key}`")
+        if not global_settings.dry_run:
             s3_client.delete_object(
                 Bucket=s3_bucket,
                 Key=key,
@@ -134,9 +133,8 @@ def do_upload(
         s3_client,
         s3_cache: S3cache,
         storage_class: str = "STANDARD",
-        dry_run: bool = False,
 ) -> int:
-    logger.info(f"{'DRY RUN ' if dry_run else ''}"
+    logger.info(f"{'DRY RUN ' if global_settings.dry_run else ''}"
                 f"Uploading {item} "
                 f"to s3://{s3_bucket}/{item.key()}")
     with item.fileobj() as f:
@@ -146,7 +144,7 @@ def do_upload(
         if isinstance(metadata.get('size'), BackupItem.SizeMetadata):
             del metadata['size']
 
-        if dry_run:
+        if global_settings.dry_run:
             while True:
                 _ = counted_f.read(1024)
                 if len(_) == 0:
@@ -168,7 +166,7 @@ def do_upload(
                 metadata=metadata,
             )
 
-    logger.info(f"{'DRY RUN ' if dry_run else ''}"
+    logger.info(f"{'DRY RUN ' if global_settings.dry_run else ''}"
                 f"Uploaded s3://{s3_bucket}/{item.key()} ({humanize.naturalsize(counted_f.bytes, binary=True)})")
 
     return counted_f.bytes

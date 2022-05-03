@@ -4,7 +4,7 @@ import re
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__, FileScanner, LocalFile
+from s3_backup import __version__, FileScanner, LocalFile, global_settings
 from s3_backup.data_transform import DataTransformWrapper
 from s3_backup.group_small_files import GroupSmallFilesWrapper
 from s3_backup.key_transform import KeyTransformCmdWrapper, KeyTransformSubWrapper
@@ -135,7 +135,9 @@ def main(args=None):
         logging.getLogger(None).setLevel(logging.getLogger(None).level - 1)
 
     if args.no_trust_mtime:
-        LocalFile.trust_mtime = False
+        global_settings.trust_mtime = False
+    if args.dry_run:
+        global_settings.dry_run = True
 
     filters = [FileScanner(args.path)]
     file_list = iter(filters[-1])
@@ -180,7 +182,6 @@ def main(args=None):
         s3_bucket=args.bucket,
         cache_db=sqlite3.connect(args.cache_file),
         storage_class=args.storage_class,
-        dry_run=args.dry_run,
     )
 
     for f in filters:
