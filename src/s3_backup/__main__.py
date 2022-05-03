@@ -128,6 +128,9 @@ def main(args=None):
     parser.add_argument('--exclude-re', metavar="REGEX",
                         action=AddOptionValueTuple, dest='filter',
                         help="Exclude keys matching the given regex (anchored at both ends).")
+    parser.add_argument('--add-key-suffix', metavar='SUFFIX',
+                        action=AddOptionValueTuple, dest='filter',
+                        help="Add a suffix to every key.")
 
     args = parser.parse_args(args)
 
@@ -166,6 +169,12 @@ def main(args=None):
                 f = ExcludeReWrapper(
                     file_list,
                     value,
+                )
+
+            elif filter_name == '--add-key-suffix':
+                f = AddKeySuffixWrapper(
+                    file_list,
+                    value
                 )
 
             else:
