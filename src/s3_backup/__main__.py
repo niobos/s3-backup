@@ -6,6 +6,7 @@ import sqlite3
 import s3_backup
 from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, DataTransform
 from s3_backup.data_transform import DataTransformWrapper
+from s3_backup.exclude_re import ExcludeReWrapper
 from s3_backup.group_small_files import GroupSmallFilesWrapper
 from s3_backup.key_transform import KeyTransformWrapper
 
@@ -124,6 +125,9 @@ def main(args=None):
                              "Returning nothing at all is a special case and will ignore this file "
                              "(i.e. will pretend this file does not exist locally, not upload to S3, "
                              "and maybe delete the item from S3 if it was already there)")
+    parser.add_argument('--exclude-re', metavar="REGEX",
+                        action=AddOptionValueTuple, dest='filter',
+                        help="Exclude keys matching the given regex (anchored at both ends).")
 
     args = parser.parse_args(args)
 
@@ -154,6 +158,12 @@ def main(args=None):
 
             elif filter_name == '--group-files-smaller-than':
                 f = GroupSmallFilesWrapper(
+                    file_list,
+                    value,
+                )
+
+            elif filter_name == '--exclude-re':
+                f = ExcludeReWrapper(
                     file_list,
                     value,
                 )
