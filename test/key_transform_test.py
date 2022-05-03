@@ -1,14 +1,12 @@
-import pathlib
-
 import pytest
 
-from s3_backup.key_transform import KeyTransform
+from s3_backup.key_transform import KeyTransformCmd, KeyTransformSubWrapper
 from s3_backup.local_file import LocalFile
 
 
 def test_filename_xform_identity(filepath):
     lf = LocalFile(filepath)
-    xf = KeyTransform(
+    xf = KeyTransformCmd(
         "echo -n \"$KEY\"",
         lf,
     )
@@ -17,7 +15,7 @@ def test_filename_xform_identity(filepath):
 
 def test_filename_xform_basic(filepath):
     lf = LocalFile(filepath)
-    xf = KeyTransform(
+    xf = KeyTransformCmd(
         "echo -n \"prefix/${KEY}.gpg\"",
         lf,
     )
@@ -26,7 +24,7 @@ def test_filename_xform_basic(filepath):
 
 def test_filename_xform_fail(filepath):
     lf = LocalFile(filepath)
-    xf = KeyTransform(
+    xf = KeyTransformCmd(
         "/bin/false",
         lf,
     )
@@ -37,7 +35,7 @@ def test_filename_xform_fail(filepath):
 def test_fileobj(testfile):
     filename, content = testfile
     lf = LocalFile(filename)
-    xf = KeyTransform("echo -n \"$KEY\"", lf)
+    xf = KeyTransformCmd("echo -n \"$KEY\"", lf)
     with xf.fileobj() as f:
         xfcontent = f.read()
     assert xfcontent == content
@@ -46,5 +44,34 @@ def test_fileobj(testfile):
 def test_metadata(testfile):
     filename, content = testfile
     lf = LocalFile(filename)
-    xf = KeyTransform("echo -n \"$KEY\"", lf)
+    xf = KeyTransformCmd("echo -n \"$KEY\"", lf)
     assert xf.metadata() == lf.metadata()
+
+
+class MockItem:
+    def __init__(self, key: str):
+        self._key = key
+
+    def key(self) -> str:
+        return self._key
+
+
+def test_exclude_re():
+    items = [
+        MockItem("foo"),
+        MockItem("barftest"),
+    ]
+    remaining_items = list(KeyTransformSubWrapper(items, '^f.*', ''))
+    assert len(remaining_items) == 1
+    assert remaining_items[0].underlying == items[1]
+
+
+def test_add_key_suffix():
+    items = [
+        MockItem("foo"),
+        MockItem("bar"),
+    ]
+    renamed_items = list(KeyTransformSubWrapper(items, '(.*)', '\\1.test'))
+    assert renamed_items[0].key() == "foo.test"
+    assert renamed_items[1].key() == "bar.test"
+    assert len(renamed_items) == 2
