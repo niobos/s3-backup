@@ -4,7 +4,7 @@ import re
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__, FileScanner, LocalFile, KeyTransformCmd, DataTransform
+from s3_backup import __version__, FileScanner, LocalFile
 from s3_backup.data_transform import DataTransformWrapper
 from s3_backup.group_small_files import GroupSmallFilesWrapper
 from s3_backup.key_transform import KeyTransformCmdWrapper, KeyTransformSubWrapper
@@ -165,7 +165,7 @@ def main(args=None):
             elif filter_name == '--key-sub':
                 f = KeyTransformSubWrapper(
                     file_list,
-                    value,
+                    value[0], value[1],
                 )
 
             else:
@@ -184,7 +184,7 @@ def main(args=None):
     )
 
     for f in filters:
-        logger.log(logging.INFO+1, f"{f.__class__.__name__}:\n{f.summary()}")
+        logger.log(logging.INFO+1, f"{f}:\n{f.summary()}")
 
 
 if __name__ == '__main__':

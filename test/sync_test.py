@@ -8,7 +8,7 @@ import botocore.errorfactory
 import moto
 import pytest
 
-from s3_backup import do_sync, FileScanner, KeyTransformCmd, DataTransform, BackupItem
+from s3_backup import do_sync, FileScanner
 from s3_backup.data_transform import DataTransformWrapper
 from s3_backup.key_transform import KeyTransformCmdWrapper
 

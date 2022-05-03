@@ -205,8 +205,12 @@ class S3cache:
             transaction.execute("CREATE TEMPORARY TABLE `flag` (key TEXT PRIMARY KEY NOT NULL);")
 
     def flag(self, key: str) -> None:
-        with self.cache_db as transaction:
-            transaction.execute("INSERT INTO `flag` (`key`) VALUES (:key);", {'key': key})
+        try:
+            with self.cache_db as transaction:
+                transaction.execute("INSERT INTO `flag` (`key`) VALUES (:key);", {'key': key})
+        except sqlite3.IntegrityError:
+            logger.error(f"Duplicate key `{key}`")
+            raise
 
     def iterate_unflagged(self) -> typing.Generator[str, None, None]:
         cursor = self.cache_db.execute("SELECT `key` FROM `s3_object_info` "

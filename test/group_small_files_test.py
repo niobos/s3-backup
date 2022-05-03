@@ -43,8 +43,8 @@ def test_grouping_1():
         MockItem("foo2/ghi", 1),
     ], 2))
     assert len(grouped) == 2
-    assert len(grouped[0].underlying) == 3
-    assert len(grouped[1].underlying) == 1
+    assert len(grouped[0].underlying_list) == 3
+    assert len(grouped[1].underlying_list) == 1
 
 
 def test_grouping_2():
@@ -58,5 +58,5 @@ def test_grouping_2():
         MockItem(".git/c/d/e", 4),
     ], 10))
     assert len(grouped) == 2
-    assert len(grouped[0].underlying) == 3
-    assert len(grouped[1].underlying) == 1
+    assert len(grouped[0].underlying_list) == 3
+    assert len(grouped[1].underlying_list) == 1
