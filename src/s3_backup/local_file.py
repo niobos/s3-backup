@@ -50,7 +50,7 @@ class LocalFile(BackupItem):
     def metadata(self) -> typing.Mapping[str, str]:
         return {
             'size': BackupItem.SizeMetadata(self.stat().st_size),
-            'hash': self.digest('SHA256'),
+            'hash': self.hash(),
         }
 
     def should_upload(
@@ -70,7 +70,7 @@ class LocalFile(BackupItem):
             return BackupItem.ShouldUpload.DoUpload
 
         if global_settings.trust_mtime:
-            local_mtime = datetime.datetime.fromtimestamp(self.stat().st_mtime)
+            local_mtime = datetime.datetime.fromtimestamp(self.mtime())
             if local_mtime < modification_time:
                 return BackupItem.ShouldUpload.DontUpload  # mtimes are trustworthy, no need to check hash
             # else: check digest below
@@ -106,6 +106,9 @@ class LocalFile(BackupItem):
     def size(self) -> int:
         return self.stat().st_size
 
+    def mtime(self) -> float:
+        return self.stat().st_mtime
+
     @functools.lru_cache()
     def digest(self, algorithm: str) -> str:
         digest = hashlib.new(algorithm)
@@ -116,3 +119,6 @@ class LocalFile(BackupItem):
                     break
                 digest.update(data)
         return f"{{{algorithm.upper()}}}{digest.hexdigest()}"
+
+    def hash(self) -> str:
+        return self.digest('SHA256')

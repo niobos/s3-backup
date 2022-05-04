@@ -64,6 +64,12 @@ class KeyTransformCmd(BackupItem):
             metadata=metadata,
         )
 
+    def hash(self) -> str:
+        return self.underlying.hash()
+
+    def mtime(self) -> typing.Optional[float]:
+        return self.underlying.mtime()
+
     @staticmethod
     def wrap_iter(
             it: typing.Iterator["BackupItem"],
@@ -135,6 +141,12 @@ class KeyTransformSub(BackupItem):
             modification_time=modification_time,
             metadata=metadata,
         )
+
+    def hash(self) -> str:
+        return self.underlying.hash()
+
+    def mtime(self) -> typing.Optional[float]:
+        return self.underlying.mtime()
 
     @staticmethod
     def wrap_iter(

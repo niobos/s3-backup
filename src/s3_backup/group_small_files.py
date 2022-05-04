@@ -1,19 +1,22 @@
+import contextlib
 import dataclasses
-import functools
+import datetime
+import hashlib
+import io
 import logging
-import os.path
 import typing
+import zipfile
 
 import humanize
 
-from s3_backup import BackupItem
+from s3_backup import BackupItem, global_settings
 from s3_backup.backup_item import BackupItemWrapper
 
 
 logger = logging.getLogger(__name__)
 
 
-class GroupedItem():
+class GroupedItem(BackupItem):
     def __init__(self, key: str, underlying: typing.List[BackupItem], size: int = None):
         self._key = key
         self.underlying_list = underlying
@@ -24,6 +27,89 @@ class GroupedItem():
 
     def __repr__(self) -> str:
         return f"<GroupedItem {self._key}: {self.underlying_list}>"
+
+    @contextlib.contextmanager
+    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
+        zip_blob = io.BytesIO()
+        with zipfile.ZipFile(zip_blob, "w", compression=zipfile.ZIP_STORED) as zip_file:
+            for entry in self.underlying_list:
+                mtime = datetime.datetime.fromtimestamp(entry.mtime(), tz=datetime.timezone.utc)
+                with entry.fileobj() as entry_fileobj:
+                    zip_file.writestr(
+                        zipfile.ZipInfo(
+                            entry.key(),
+                            (mtime.year, mtime.month, mtime.day, mtime.hour, mtime.minute, mtime.second),
+                        ),
+                        entry_fileobj.read(),
+                    )
+        zip_blob.seek(0)
+        yield zip_blob
+
+    def num_items(self) -> int:
+        return len(self.underlying_list)
+
+    def list_hash(self) -> str:
+        blob = hashlib.sha256()
+        for entry in self.underlying_list:
+            blob.update((entry.key() + "\0" + str(entry.size()) + "\0").encode('utf-8'))
+        return blob.hexdigest()
+
+    def mtime(self) -> typing.Optional[float]:
+        mtime = None
+        for entry in self.underlying_list:
+            entry_mtime = entry.mtime()
+            if mtime is None or entry_mtime > mtime:
+                mtime = entry_mtime
+
+        return mtime
+
+    def content_hash(self) -> str:
+        blob = hashlib.sha256()
+        for entry in self.underlying_list:
+            blob.update((entry.key() + "\0" + entry.hash() + "\0").encode('utf-8'))
+        return blob.hexdigest()
+
+    def hash(self) -> str:
+        return self.content_hash()
+
+    def metadata(self) -> typing.Dict[str, str]:
+        return {
+            'num-items': str(self.num_items()),
+            'list-hash': self.list_hash(),
+            'content-hash': self.content_hash(),
+        }
+
+    def should_upload(
+            self,
+            modification_time: typing.Optional[datetime.datetime],
+            metadata: typing.Optional[typing.Mapping[str, str]],
+    ) -> BackupItem.ShouldUpload:
+        if modification_time is None:  # not on S3
+            return BackupItem.ShouldUpload.DoUpload
+        # else:
+
+        if global_settings.trust_mtime:
+            if self.mtime() <= modification_time.timestamp():
+                return BackupItem.ShouldUpload.DontUpload
+            # else: check hashes
+
+        # check metadata. Start with the cheap methods,
+        # only run more expensive checks if the cheaper ones don't see a difference
+        if self.num_items() != metadata['num-items']:
+            return BackupItem.ShouldUpload.DoUpload
+        if self.list_hash() != metadata['list-hash']:
+            return BackupItem.ShouldUpload.DoUpload
+        if self.content_hash() != metadata['content-hash']:
+            return BackupItem.ShouldUpload.DoUpload
+
+        if global_settings.trust_mtime:
+            # Since we arrived here, the local file(s) have a newer mtime,
+            # but the digest was still correct.
+            # Bump the locally cached mtime of the S3 object, so we don't
+            # need to check the digest until the file(s) are touched again
+            return BackupItem.ShouldUpload.UpdateModificationTimeOnly
+        else:
+            return BackupItem.ShouldUpload.DontUpload
 
 
 class Tree:
@@ -134,20 +220,26 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
     ):
         super().__init__(underlying_it)
         self.size_threshold = size_threshold
+        self.suffix = '*~.zip'
+        self.num_zip_files = 0
+        self.min_size = None
+        self.max_size = None
         self.small_files = 0
         self.small_files_bytes = 0
         self.large_files = 0
         self.large_files_bytes = 0
-        self.suffix = '*~.zip'
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(size_threshold={self.size_threshold})"
 
     def summary(self) -> str:
-        return f"{self.small_files} files, {humanize.naturalsize(self.small_files_bytes, binary=True)} " \
+        return f"Generated {self.num_zip_files} ZIPs, ranging from " \
+               f"{humanize.naturalsize(self.min_size, binary=True)} to " \
+               f"{humanize.naturalsize(self.max_size, binary=True)}\n" \
+               f"containing {self.small_files} files, {humanize.naturalsize(self.small_files_bytes, binary=True)} " \
                f"< {humanize.naturalsize(self.size_threshold, binary=True)}\n" \
-               f"{self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)} " \
-               f">= {humanize.naturalsize(self.size_threshold, binary=True)}"
+               f"({self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)} " \
+               f">= {humanize.naturalsize(self.size_threshold, binary=True)} passed through)"
 
     def __iter__(self) -> typing.Generator[BackupItem, None, None]:
         small_files = []
@@ -162,24 +254,22 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
                 self.large_files_bytes += size
                 yield entry
 
+        # TODO: don't emit the small files anymore once the ZIP is validated
         for entry in small_files:
             yield entry
 
-        logger.info("Would group:")
-        num = 0
-        min_size = None
-        max_size = None
         for entry in group_files(small_files, min_size=self.size_threshold):
             entry._key = entry._key + self.suffix
-            logger.info(f"`{entry.key()}`  "
-                        f"({len(entry.underlying_list)} entries, "
-                        f"{humanize.naturalsize(entry.size, binary=True)})"
-                        "\n    " + "\n    ".join([str(_) for _ in entry.underlying_list]))
-            num += 1
-            if min_size is None or entry.size < min_size:
-                min_size = entry.size
-            if max_size is None or entry.size > max_size:
-                max_size = entry.size
-        logger.info(f"Would have generated {num} ZIPs, ranging from "
-                    f"{humanize.naturalsize(min_size, binary=True)} to "
-                    f"{humanize.naturalsize(max_size, binary=True)}")
+
+            logger.log(logging.INFO-1,
+                       f"`{entry.key()}`  "
+                       f"({len(entry.underlying_list)} entries, "
+                       f"{humanize.naturalsize(entry.size, binary=True)})"
+                       "\n    " + "\n    ".join([str(_) for _ in entry.underlying_list]))
+            yield entry
+
+            self.num_zip_files += 1
+            if self.min_size is None or entry.size < self.min_size:
+                self.min_size = entry.size
+            if self.max_size is None or entry.size > self.max_size:
+                self.max_size = entry.size

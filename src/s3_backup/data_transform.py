@@ -1,11 +1,77 @@
 import contextlib
 import datetime
+import io
 import logging
 import os
 import subprocess
+import threading
 import typing
 
 from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper
+
+
+def stdin_pump(data: io.BytesIO, fd: typing.BinaryIO) -> None:
+    while True:
+        blob = data.read(4096)
+        if len(blob) == 0:
+            fd.close()
+            break
+        fd.write(blob)
+
+
+class DataXformReadWrapper:
+    """
+    Helper class to Upload an S3 object while its content is generated on
+    the fly.
+
+    s3_client.upload_fileobj() will read() from the given object when it needs
+    more data. This class will read from the transform-subprocess.
+    """
+    def __init__(self,
+                 xform: str,
+                 fileobj: typing.BinaryIO,
+                 extra_env: dict = None
+                 ):
+        xform_env = os.environ.copy()
+        if extra_env is not None:
+            xform_env.update(extra_env)
+
+        self.stdin_pump = None
+        orig_fileobj = None
+        if isinstance(fileobj, io.BytesIO):
+            orig_fileobj = fileobj
+            fileobj = subprocess.PIPE
+
+        logger.log(logging.INFO-2, f"spawning `{xform}`")
+        self.subprocess = subprocess.Popen(
+            ["/bin/bash", "-c", xform],
+            stdin=fileobj,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=xform_env,
+        )
+        self.output = self.subprocess.stdout
+
+        if orig_fileobj is not None:
+            self.stdin_pump = threading.Thread(target=stdin_pump, args=(orig_fileobj, self.subprocess.stdin))
+            self.stdin_pump.start()
+
+        self.size = 0
+
+    def read(self, size=-1) -> bytes:
+        data = self.output.read(size)
+        self.size += len(data)
+        return data
+
+    def close(self):
+        if self.subprocess is not None:
+            return_code = self.subprocess.wait()
+            if return_code != 0:
+                raise OSError(f"exit code {return_code}\n" + self.subprocess.stderr.read().decode('utf-8'))
+            self.subprocess = None
+        if self.stdin_pump is not None:
+            self.stdin_pump.join()
+            self.stdin_pump = None
 
 
 class DataTransform(BackupItem):
@@ -28,57 +94,17 @@ class DataTransform(BackupItem):
     def key(self) -> str:
         return self.underlying.key()
 
-    class DataXformReadWrapper:
-        """
-        Helper class to Upload an S3 object while its content is generated on
-        the fly.
-
-        s3_client.upload_fileobj() will read() from the given object when it needs
-        more data. This class will read from the transform-subprocess.
-        """
-        def __init__(self,
-                     xform: str,
-                     fileobj: typing.BinaryIO,
-                     extra_env: dict = None
-                     ):
-            xform_env = os.environ.copy()
-            if extra_env is not None:
-                xform_env.update(extra_env)
-
-            logger.log(logging.INFO-2, f"spawning `{xform}`")
-            self.subprocess = subprocess.Popen(
-                ["/bin/bash", "-c", xform],
-                stdin=fileobj,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=xform_env,
-            )
-            self.output = self.subprocess.stdout
-
-            self.size = 0
-
-        def read(self, size=-1) -> bytes:
-            data = self.output.read(size)
-
-            self.size += len(data)
-
-            if len(data) == 0 and self.subprocess is not None:
-                return_code = self.subprocess.wait()
-                if return_code != 0:
-                    raise OSError(f"exit code {return_code}\n" + self.subprocess.stderr.read().decode('utf-8'))
-
-            return data
-
     @contextlib.contextmanager
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
         with self.underlying.fileobj() as f_orig:
-            f_wrapped = DataTransform.DataXformReadWrapper(
+            f_wrapped = DataXformReadWrapper(
                 self.xform_command, f_orig,
                 extra_env={
                     'KEY': self.key(),
                 },
             )
             yield f_wrapped
+            f_wrapped.close()
 
     def metadata(self) -> typing.Mapping[str, str]:
         m = {
@@ -106,6 +132,12 @@ class DataTransform(BackupItem):
             modification_time=modification_time,
             metadata=underlying_metadata,
         )
+
+    def hash(self) -> str:
+        return self.underlying.hash()
+
+    def mtime(self) -> typing.Optional[float]:
+        return self.underlying.mtime()
 
 
 class DataTransformWrapper(BackupItemWrapper):

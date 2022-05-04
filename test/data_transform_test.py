@@ -29,8 +29,8 @@ def test_fail(testfile):
     filename, content = testfile
     lf = LocalFile(filename)
     xf = DataTransform("/bin/false", lf)
-    with xf.fileobj() as f:
-        with pytest.raises(OSError):
+    with pytest.raises(OSError):
+        with xf.fileobj() as f:
             f.read()
 
 
