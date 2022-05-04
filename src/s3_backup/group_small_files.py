@@ -100,7 +100,7 @@ class GroupedItem(BackupItem):
         num_items = str(self.num_items())
         if num_items != metadata.get('num-items', ''):
             logger.info(f"{self} needs uploading: "
-                        f"new contains {num_items} items, s3 contains {metadata['num-items']}")
+                        f"number of items differ {num_items} != {metadata.get('num-items', '')}")
             return BackupItem.ShouldUpload.DoUpload
 
         list_hash = self.list_hash()
@@ -235,7 +235,8 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
         self.size_threshold = size_threshold
         self.suffix = '*~.zip'
         self.num_zip_files = 0
-        self.min_size = None
+        self.min_size = [None, None]  # Keep the 2 smallest files
+        # The "leftover" zip will always be smallest, but is not representative
         self.max_size = None
         self.small_files = 0
         self.small_files_bytes = 0
@@ -247,8 +248,9 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
 
     def summary(self) -> str:
         return f"Generated {self.num_zip_files} ZIPs, ranging from " \
-               f"{humanize.naturalsize(self.min_size, binary=True)} to " \
-               f"{humanize.naturalsize(self.max_size, binary=True)} each\n" \
+               f"{humanize.naturalsize(self.min_size[1], binary=True)} to " \
+               f"{humanize.naturalsize(self.max_size, binary=True)} each " \
+               f"({humanize.naturalsize(self.min_size[0], binary=True)} for the leftover ZIP)\n" \
                f"together containing {self.small_files} files, " \
                f"{humanize.naturalsize(self.small_files_bytes, binary=True)}, " \
                f"each <{humanize.naturalsize(self.size_threshold, binary=True)}\n" \
@@ -283,7 +285,12 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
             yield entry
 
             self.num_zip_files += 1
-            if self.min_size is None or entry.size < self.min_size:
-                self.min_size = entry.size
+
+            if self.min_size[0] is None or entry.size < self.min_size[0]:
+                self.min_size[1] = self.min_size[0]
+                self.min_size[0] = entry.size
+            elif self.min_size[1] is None or entry.size < self.min_size[1]:
+                self.min_size[1] = entry.size
+
             if self.max_size is None or entry.size > self.max_size:
                 self.max_size = entry.size

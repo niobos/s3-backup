@@ -185,7 +185,7 @@ def main(args=None):
     )
 
     for f in filters:
-        logger.log(logging.INFO+1, f"{f}:\n{f.summary()}")
+        logger.log(logging.INFO+1, f"{f}:\n{f.summary()}\n")
 
 
 if __name__ == '__main__':
