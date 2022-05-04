@@ -85,6 +85,8 @@ class GroupedItem(BackupItem):
             metadata: typing.Optional[typing.Mapping[str, str]],
     ) -> BackupItem.ShouldUpload:
         if modification_time is None:  # not on S3
+            logger.info(f"{self} needs uploading: "
+                        f"not on S3")
             return BackupItem.ShouldUpload.DoUpload
         # else:
 
@@ -95,11 +97,22 @@ class GroupedItem(BackupItem):
 
         # check metadata. Start with the cheap methods,
         # only run more expensive checks if the cheaper ones don't see a difference
-        if self.num_items() != metadata['num-items']:
+        num_items = str(self.num_items())
+        if num_items != metadata.get('num-items', ''):
+            logger.info(f"{self} needs uploading: "
+                        f"new contains {num_items} items, s3 contains {metadata['num-items']}")
             return BackupItem.ShouldUpload.DoUpload
-        if self.list_hash() != metadata['list-hash']:
+
+        list_hash = self.list_hash()
+        if list_hash != metadata.get('list-hash', ''):
+            logger.info(f"{self} needs uploading: "
+                        f"list-hash differs: {list_hash} != {metadata.get('list-hash', '')}")
             return BackupItem.ShouldUpload.DoUpload
-        if self.content_hash() != metadata['content-hash']:
+
+        content_hash = self.content_hash()
+        if content_hash != metadata.get('content-hash', ''):
+            logger.info(f"{self} needs uploading: "
+                        f"content-hash differs: {content_hash} != {metadata.get('content-hash', '')}")
             return BackupItem.ShouldUpload.DoUpload
 
         if global_settings.trust_mtime:
