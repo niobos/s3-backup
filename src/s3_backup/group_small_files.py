@@ -258,6 +258,10 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
     def __iter__(self) -> typing.Generator[BackupItem, None, None]:
         small_files = []
         for entry in self.underlying_it:
+            if entry.key().endswith(self.suffix):
+                raise RuntimeError(f"Got key `entry.key()` that collides with "
+                                   f"{self.__class__.__name__} configured suffix of `{self.suffix}`")
+
             size = entry.size()
             if size is not None and size < self.size_threshold:
                 self.small_files += 1
