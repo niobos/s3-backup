@@ -235,11 +235,12 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
     def summary(self) -> str:
         return f"Generated {self.num_zip_files} ZIPs, ranging from " \
                f"{humanize.naturalsize(self.min_size, binary=True)} to " \
-               f"{humanize.naturalsize(self.max_size, binary=True)}\n" \
-               f"containing {self.small_files} files, {humanize.naturalsize(self.small_files_bytes, binary=True)} " \
-               f"< {humanize.naturalsize(self.size_threshold, binary=True)}\n" \
-               f"({self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)} " \
-               f">= {humanize.naturalsize(self.size_threshold, binary=True)} passed through)"
+               f"{humanize.naturalsize(self.max_size, binary=True)} each\n" \
+               f"together containing {self.small_files} files, " \
+               f"{humanize.naturalsize(self.small_files_bytes, binary=True)}, " \
+               f"each <{humanize.naturalsize(self.size_threshold, binary=True)}\n" \
+               f"({self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)}, " \
+               f"each >={humanize.naturalsize(self.size_threshold, binary=True)}, passed through)"
 
     def __iter__(self) -> typing.Generator[BackupItem, None, None]:
         small_files = []

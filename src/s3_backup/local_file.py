@@ -84,7 +84,8 @@ class LocalFile(BackupItem):
                             f"({my_digest} != {metadata['hash']})")
                 return BackupItem.ShouldUpload.DoUpload
         except (AttributeError,  # regex doesn't match
-                TypeError,  # plaintext_hash is None
+                KeyError,  # hash not present in metadata
+                TypeError,  # hash is None
                 ValueError,  # algorithm isn't known
                 ) as e:
             logger.warning(f"{self} needs uploading: could not get plaintext_hash of S3 object: {e}")
