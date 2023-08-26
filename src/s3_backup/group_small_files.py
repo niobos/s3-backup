@@ -33,7 +33,11 @@ class GroupedItem(BackupItem):
         zip_blob = io.BytesIO()
         with zipfile.ZipFile(zip_blob, "w", compression=zipfile.ZIP_STORED) as zip_file:
             for entry in self.underlying_list:
-                mtime = datetime.datetime.fromtimestamp(entry.mtime(), tz=datetime.timezone.utc)
+                mtime = entry.mtime()
+                if mtime < 315532800:  # minimum mtime ZIP supports
+                    logger.warning(f"Capping mtime to 1980-01-01 to add to ZIP: {entry}")
+                    mtime = 315532800  # cap to 1980-01-01 00:00:00
+                mtime = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc)
                 with entry.fileobj() as entry_fileobj:
                     zip_file.writestr(
                         zipfile.ZipInfo(
