@@ -4,11 +4,10 @@ import re
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, DataTransform
+from s3_backup import __version__, FileScanner, LocalFile, KeyTransformCmd, DataTransform
 from s3_backup.data_transform import DataTransformWrapper
-from s3_backup.exclude_re import ExcludeReWrapper
 from s3_backup.group_small_files import GroupSmallFilesWrapper
-from s3_backup.key_transform import KeyTransformWrapper
+from s3_backup.key_transform import KeyTransformCmdWrapper, KeyTransformSubWrapper
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
 log_file_handler = logging.StreamHandler()
@@ -125,12 +124,10 @@ def main(args=None):
                              "Returning nothing at all is a special case and will ignore this file "
                              "(i.e. will pretend this file does not exist locally, not upload to S3, "
                              "and maybe delete the item from S3 if it was already there)")
-    parser.add_argument('--exclude-re', metavar="REGEX",
+    parser.add_argument('--key-sub', nargs=2, metavar="REGEX_SUB",
                         action=AddOptionValueTuple, dest='filter',
-                        help="Exclude keys matching the given regex (anchored at both ends).")
-    parser.add_argument('--add-key-suffix', metavar='SUFFIX',
-                        action=AddOptionValueTuple, dest='filter',
-                        help="Add a suffix to every key.")
+                        help="Do regex substitution on keys. If the resulting key is the empty string, the file is"
+                             "skipped. Regex is *not* anchored. Only a single replacement will be done per key.")
 
     args = parser.parse_args(args)
 
@@ -148,7 +145,7 @@ def main(args=None):
             # Note: remember to close over `value`!
 
             if filter_name == '--filename-xform':
-                f = KeyTransformWrapper(
+                f = KeyTransformCmdWrapper(
                     file_list,
                     value,
                 )
@@ -165,16 +162,10 @@ def main(args=None):
                     value,
                 )
 
-            elif filter_name == '--exclude-re':
-                f = ExcludeReWrapper(
+            elif filter_name == '--key-sub':
+                f = KeyTransformSubWrapper(
                     file_list,
                     value,
-                )
-
-            elif filter_name == '--add-key-suffix':
-                f = AddKeySuffixWrapper(
-                    file_list,
-                    value
                 )
 
             else:

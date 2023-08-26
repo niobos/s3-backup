@@ -8,9 +8,9 @@ import botocore.errorfactory
 import moto
 import pytest
 
-from s3_backup import do_sync, FileScanner, KeyTransform, DataTransform, BackupItem
+from s3_backup import do_sync, FileScanner, KeyTransformCmd, DataTransform, BackupItem
 from s3_backup.data_transform import DataTransformWrapper
-from s3_backup.key_transform import KeyTransformWrapper
+from s3_backup.key_transform import KeyTransformCmdWrapper
 
 
 @moto.mock_s3
@@ -52,7 +52,7 @@ def test_sync(tmp_path):
     s3_cache = sqlite3.Connection(':memory:')
 
     orig_file_list = FileScanner(tmp_path)
-    file_list = KeyTransformWrapper(
+    file_list = KeyTransformCmdWrapper(
         iter(orig_file_list),
         'echo -n "${KEY}.invcase"'
     )

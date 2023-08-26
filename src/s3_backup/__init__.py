@@ -10,8 +10,6 @@ import humanize
 
 from .__meta__ import __version__  # export package-wide
 from .backup_item import BackupItem
-from .data_transform import DataTransform
-from .key_transform import KeyTransform
 from .local_file import LocalFile
 from .s3cache import S3cache, S3ObjectInfo
 from .stats import Stats
