@@ -177,6 +177,7 @@ def main(args=None):
             file_list = iter(f)
 
 
+    logger.log(logging.INFO+1, f"Doing sync from `{args.path}` to `{args.bucket}`")
     s3_backup.do_sync(
         file_list=file_list,
         s3_bucket=args.bucket,

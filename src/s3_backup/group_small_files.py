@@ -201,6 +201,7 @@ class Tree:
 
 
 def group_files(items: typing.Iterator[BackupItem], min_size: int) -> typing.Iterator[GroupedItem]:
+    logger.log(logging.INFO-1, "Starting search to group items...")
     tree = Tree()
     tree.add_elements((
         Tree.Element(item.key(), item.size(), item)
@@ -209,6 +210,7 @@ def group_files(items: typing.Iterator[BackupItem], min_size: int) -> typing.Ite
     tree.flatten()  # reduce recursion
     tree.merge_min_size(min_size)
     tree.flatten()  # again, since we pulled up elements in the merge_min_size()-step
+    logger.log(logging.INFO-1, "Grouping done")
 
     def recurse_tree(node: Tree, prefix: str = ''):
         for child_prefix, child in node.key_prefixes.items():
@@ -237,7 +239,9 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
         self.num_zip_files = 0
         self.min_size = [None, None]  # Keep the 2 smallest files
         # The "leftover" zip will always be smallest, but is not representative
+        self.min_elements = None
         self.max_size = None
+        self.max_elements = None
         self.small_files = 0
         self.small_files_bytes = 0
         self.large_files = 0
@@ -247,13 +251,16 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
         return f"{self.__class__.__name__}(size_threshold={self.size_threshold})"
 
     def summary(self) -> str:
-        return f"Generated {self.num_zip_files} ZIPs, ranging from " \
-               f"{humanize.naturalsize(self.min_size[1], binary=True)} to " \
-               f"{humanize.naturalsize(self.max_size, binary=True)} each " \
-               f"({humanize.naturalsize(self.min_size[0], binary=True)} for the leftover ZIP)\n" \
+        return f"Generated {self.num_zip_files} ZIPs " \
                f"together containing {self.small_files} files, " \
                f"{humanize.naturalsize(self.small_files_bytes, binary=True)}, " \
                f"each <{humanize.naturalsize(self.size_threshold, binary=True)}\n" \
+               f"Individual ZIPs contain between " \
+               f"{humanize.naturalsize(self.min_size[1], binary=True)} and " \
+               f"{humanize.naturalsize(self.max_size, binary=True)} " \
+               f"({humanize.naturalsize(self.min_size[0], binary=True)} for the leftover ZIP)\n" \
+               f"and between {self.min_elements} and " \
+               f"{self.max_elements} items\n" \
                f"({self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)}, " \
                f"each >={humanize.naturalsize(self.size_threshold, binary=True)}, passed through)"
 
@@ -294,3 +301,9 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
 
             if self.max_size is None or entry.size > self.max_size:
                 self.max_size = entry.size
+
+            if self.min_elements is None or len(entry.underlying_list) < self.min_elements:
+                self.min_elements = len(entry.underlying_list)
+
+            if self.max_elements is None or len(entry.underlying_list) > self.max_elements:
+                self.max_elements = len(entry.underlying_list)
