@@ -58,6 +58,9 @@ def main(args=None):
     parser.add_argument('--verbose', '-v', action='count', default=0,
                         help="Increase verbosity, can be used multiple times for increased verbosity "
                              "(up to 11 times)")
+    parser.add_argument('--dry-run', action='store_true',
+                        help="Don't actually upload/delete objects."
+                        )
 
     parser.add_argument('--no-trust-mtime', action='store_true',
                         help="Do not trust file modification time to identify if a file needs uploading. "
@@ -120,6 +123,7 @@ def main(args=None):
         s3_bucket=args.bucket,
         cache_db=sqlite3.connect(args.cache_file),
         storage_class=args.storage_class,
+        dry_run=args.dry_run,
     )
     logger.log(logging.INFO+1, orig_file_list.summary())
 
