@@ -7,7 +7,7 @@ import boto3
 import humanize
 
 from .__meta__ import __version__  # export package-wide
-from .file import File
+from .file import File, IgnoreThisFile, FileDoesNotExist
 from .s3cache import S3cache
 
 
@@ -63,7 +63,8 @@ def do_sync(
             s3_client=s3_client,
         )
 
-        logger.log(logging.INFO-1, f"Transformed filename `{relative_filename}` => `{file.s3_key}`")
+        logger.log(logging.INFO-1, f"Transformed filename `{relative_filename}` => `{file.s3_key}`"
+                                   f"{ 'IGNORED' if file.ignore else ''}")
 
         reason = file.upload_needed()
         logger.log(logging.INFO-1, f"Should upload? {reason}")
@@ -73,7 +74,10 @@ def do_sync(
                         f"to s3://{file.s3_bucket}/{file.s3_key} ({reason})")
             file.do_upload(storage_class=storage_class)
 
-        cache.flag(file.s3_key)
+        if file.s3_key != "":
+            # s3_key == "" indicates this file should be assumed not to exist locally
+            # No need to flag anyway (we'll run in to the UNIQUE constraint anyway)
+            cache.flag(file.s3_key)
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
