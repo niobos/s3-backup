@@ -56,7 +56,22 @@ class BackupItem(abc.ABC):
     def size(self) -> typing.Optional[int]:
         """
         If the size of the file is known, return it.
-        Otherwise return None
+        Otherwise, return None
+        """
+        return None
+
+    @abc.abstractmethod
+    def hash(self) -> str:
+        """
+        Returns a hash of the item.
+        If an item hashes to the same value, it is assumed to not have changed.
+        """
+        raise NotImplementedError()
+
+    def mtime(self) -> typing.Optional[float]:
+        """
+        Return a modification time, if available.
+        Seconds since unix epoch
         """
         return None
 
