@@ -153,23 +153,24 @@ def do_upload(
                 _ = counted_f.read(1024)
                 if len(_) == 0:
                     break
-            return counted_f.bytes
-        # else:
+        else:
+            s3_client.upload_fileobj(
+                Fileobj=counted_f,
+                Bucket=s3_bucket,
+                Key=item.key(),
+                ExtraArgs={
+                    'StorageClass': storage_class,
+                    'Metadata': metadata,
+                },
+            )
 
-        s3_client.upload_fileobj(
-            Fileobj=counted_f,
-            Bucket=s3_bucket,
-            Key=item.key(),
-            ExtraArgs={
-                'StorageClass': storage_class,
-                'Metadata': metadata,
-            },
-        )
+            s3_cache[item.key()] = S3ObjectInfo(
+                s3_size=counted_f.bytes,
+                s3_modification_time=datetime.datetime.now(),
+                metadata=metadata,
+            )
 
-    s3_cache[item.key()] = S3ObjectInfo(
-        s3_size=counted_f.bytes,
-        s3_modification_time=datetime.datetime.now(),
-        metadata=metadata,
-    )
+    logger.info(f"{'DRY RUN ' if dry_run else ''}"
+                f"Uploaded s3://{s3_bucket}/{item.key()} ({humanize.naturalsize(counted_f.bytes, binary=True)})")
 
     return counted_f.bytes
