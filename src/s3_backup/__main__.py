@@ -1,10 +1,12 @@
 import argparse
 import logging
+import re
 import sqlite3
 
 import s3_backup
 from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, DataTransform
 from s3_backup.data_transform import DataTransformWrapper
+from s3_backup.group_small_files import GroupSmallFilesWrapper
 from s3_backup.key_transform import KeyTransformWrapper
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
@@ -21,6 +23,32 @@ class AddOptionValueTuple(argparse.Action):
         if getattr(namespace, self.dest, None) is None:
             setattr(namespace, self.dest, [])
         getattr(namespace, self.dest).append((option_string, values))
+
+
+def parse_size(s: str) -> int:
+    PREFIX = {
+        None: 1,
+        'k': 1000, 'K': 1000,
+        'M': 1e6,
+        'G': 1e9,
+        'T': 1e12,
+        'P': 1e15,
+        'E': 1e18,
+        'Ki': 1024,
+        'Mi': 1024**2,
+        'Gi': 1024**3,
+        'Ti': 1024**4,
+        'Pi': 1024**5,
+        'Ei': 1024**6,
+    }
+
+    match = re.fullmatch(r'(\d+)\s*([kKMGTPE]i?)?B?', s)
+    if not match:
+        raise ValueError(f"Unrecognized size `{s}`")
+
+    mantissa = int(match.group(1))
+    exp = PREFIX[match.group(2)]
+    return mantissa * exp
 
 
 def main(args=None):
@@ -71,6 +99,11 @@ def main(args=None):
                              "Enabling this option will only use filesize and hash to be used to "
                              "decide if uploading is needed.")
 
+    parser.add_argument('--group-files-smaller-than',
+                        action=AddOptionValueTuple, dest='filter',
+                        help="Group files smaller than the given size together. "
+                             "Note that this filter needs to know the size of the files beforehand, "
+                             "so it should be placed before any data-altering filters such as data-xform.")
     parser.add_argument('--data-xform',
                         action=AddOptionValueTuple, dest='filter',
                         help="Use the given command to transform the data before uploading. "
@@ -109,14 +142,20 @@ def main(args=None):
 
             if filter_name == '--filename-xform':
                 f = KeyTransformWrapper(
-                    iter(file_list),
+                    file_list,
                     value,
                 )
 
             elif filter_name == '--data-xform':
                 f = DataTransformWrapper(
-                    iter(file_list),
+                    file_list,
                     value,
+                )
+
+            elif filter_name == '--group-files-smaller-than':
+                f = GroupSmallFilesWrapper(
+                    file_list,
+                    parse_size(value),
                 )
 
             else:
