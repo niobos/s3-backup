@@ -9,6 +9,8 @@ import moto
 import pytest
 
 from s3_backup import do_sync, FileScanner, KeyTransform, DataTransform, BackupItem
+from s3_backup.data_transform import DataTransformWrapper
+from s3_backup.key_transform import KeyTransformWrapper
 
 
 @moto.mock_s3
@@ -50,13 +52,13 @@ def test_sync(tmp_path):
     s3_cache = sqlite3.Connection(':memory:')
 
     orig_file_list = FileScanner(tmp_path)
-    file_list = BackupItem.wrap_iter(
+    file_list = KeyTransformWrapper(
         iter(orig_file_list),
-        lambda item: KeyTransform('echo -n "${KEY}.invcase"', item)
+        'echo -n "${KEY}.invcase"'
     )
-    file_list = BackupItem.wrap_iter(
+    file_list = DataTransformWrapper(
         iter(file_list),
-        lambda item: DataTransform("tr '[A-Za-z]' '[a-zA-Z]'", item)
+        "tr '[A-Za-z]' '[a-zA-Z]'"
     )
 
     do_sync(

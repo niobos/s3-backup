@@ -5,7 +5,7 @@ import os
 import subprocess
 import typing
 
-from s3_backup.backup_item import BackupItem, logger
+from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper
 
 
 class KeyTransform(BackupItem):
@@ -67,6 +67,23 @@ class KeyTransform(BackupItem):
     ) -> typing.Generator["BackupItem", None, None]:
         for item in it:
             wrapped_item = KeyTransform(xform_command, item)
+            if wrapped_item.key() == "":
+                continue
+            yield wrapped_item
+
+
+class KeyTransformWrapper(BackupItemWrapper):
+    def __init__(
+            self,
+            underlying_it: typing.Iterator[BackupItem],
+            xform_command: str,
+    ):
+        super().__init__(underlying_it)
+        self.xform_command = xform_command
+
+    def __iter__(self) -> typing.Generator[KeyTransform, None, None]:
+        for item in self.underlying_it:
+            wrapped_item = KeyTransform(self.xform_command, item)
             if wrapped_item.key() == "":
                 continue
             yield wrapped_item

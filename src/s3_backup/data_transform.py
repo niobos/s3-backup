@@ -5,7 +5,7 @@ import os
 import subprocess
 import typing
 
-from s3_backup.backup_item import BackupItem, logger
+from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper
 
 
 class DataTransform(BackupItem):
@@ -107,11 +107,17 @@ class DataTransform(BackupItem):
             metadata=underlying_metadata,
         )
 
-    @staticmethod
-    def wrap_iter(
-            it: typing.Iterator["BackupItem"],
+
+class DataTransformWrapper(BackupItemWrapper):
+    def __init__(
+            self,
+            underlying_it: typing.Iterator[BackupItem],
             xform_command: str,
-    ) -> typing.Generator["BackupItem", None, None]:
-        for item in it:
-            wrapped_item = DataTransform(xform_command, item)
+    ):
+        super().__init__(underlying_it)
+        self.xform_command = xform_command
+
+    def __iter__(self) -> typing.Generator[DataTransform, None, None]:
+        for item in self.underlying_it:
+            wrapped_item = DataTransform(self.xform_command, item)
             yield wrapped_item
