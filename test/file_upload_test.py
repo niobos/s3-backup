@@ -49,7 +49,7 @@ def test_upload_needed():
             st_mtime=datetime.datetime.now().timestamp(),
             st_size=11,
         )
-        assert f.upload_needed().startswith("is newer")
+        assert not f.upload_needed()  # it is newer, but same content; no upload needed
 
         frozen_datetime.tick(1)
         s3_cache['relative'].s3_modification_time = datetime.datetime.now()
@@ -66,6 +66,11 @@ def test_upload_needed():
         s3_cache['relative'].plaintext_size = 12
         assert not f.upload_needed()
 
+        frozen_datetime.tick(1)
+        f._cache['stat'] = FakeStat(
+            st_mtime=datetime.datetime.now().timestamp(),  # Update mtime to be newer
+            st_size=12,
+        )
         f._cache['digest'] = {'rand': "{rand}yyy"}  # different hash
         assert f.upload_needed().startswith("different hash")
 
