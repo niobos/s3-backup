@@ -80,7 +80,8 @@ def do_sync(
 
         try:
             s3_info = cache[item.key()]
-            s3_info.metadata['size'] = s3_info.s3_size
+            if 'size' not in s3_info.metadata:
+                s3_info.metadata['size'] = s3_info.s3_size
         except KeyError:
             s3_info = None
 

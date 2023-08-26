@@ -16,11 +16,11 @@ class DataTransform(BackupItem):
             data_xform_command: str,
             underlying: BackupItem,
     ):
-        self.data_xform_command = data_xform_command
+        self.xform_command = data_xform_command
         self.underlying = underlying
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {repr(self.underlying)}>"
+        return f"<{self.__class__.__name__} xform={self.xform_command} {repr(self.underlying)}>"
 
     def __str__(self) -> str:
         return repr(self)
@@ -65,7 +65,7 @@ class DataTransform(BackupItem):
             if len(data) == 0 and self.subprocess is not None:
                 return_code = self.subprocess.wait()
                 if return_code != 0:
-                    raise OSError(self.subprocess.stderr)
+                    raise OSError(f"exit code {return_code}\n" + self.subprocess.stderr.read().decode('utf-8'))
 
             return data
 
@@ -73,7 +73,7 @@ class DataTransform(BackupItem):
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
         with self.underlying.fileobj() as f_orig:
             f_wrapped = DataTransform.DataXformReadWrapper(
-                self.data_xform_command, f_orig,
+                self.xform_command, f_orig,
                 extra_env={
                     'KEY': self.key(),
                 },

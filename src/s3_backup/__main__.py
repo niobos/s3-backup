@@ -104,19 +104,23 @@ def main(args=None):
     if args.filter is not None:
         for filter_name, value in args.filter:
             if filter_name == '--filename-xform':
+                def wrapper(value):  # creates closure over value
+                    return lambda item: KeyTransform(value, item)
                 file_list = KeyTransform.wrap_iter(
                     iter(file_list),
-                    lambda item: KeyTransform(value, item)
+                    wrapper(value),
                 )
 
             elif filter_name == '--data-xform':
+                def wrapper(value):  # creates closure over value
+                    return lambda item: DataTransform(value, item)
                 file_list = DataTransform.wrap_iter(
                     iter(file_list),
-                    lambda item: DataTransform(value, item)
+                    wrapper(value),
                 )
 
             else:
-                raise RuntimeError(f"Unrecognized filter {filter}")
+                raise RuntimeError(f"Unrecognized filter {filter_name}")
 
     s3_backup.do_sync(
         file_list=iter(file_list),
