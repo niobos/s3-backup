@@ -3,8 +3,7 @@ import logging
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__
-
+from s3_backup import __version__, File
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
 log_file_handler = logging.StreamHandler()
@@ -35,13 +34,13 @@ def main(args=None):
                         help="S3 bucket to upload to")
 
     parser.add_argument('--storage-class', default="STANDARD",
-                        help="Storage class to use. See " +
-                             "https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html " +
+                        help="Storage class to use. See " 
+                             "https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html "
                              "for options.")
 
     parser.add_argument('--cache-file', default="s3_content.sqlite",
-                        help="Path to the location of the cache file. The content " +
-                             "of this file can be reconstructed from the S3 bucket, " +
+                        help="Path to the location of the cache file. The content "
+                             "of this file can be reconstructed from the S3 bucket, "
                              "but that is an extensive operation.")
 
     parser.add_argument('--data-xform',
@@ -69,13 +68,14 @@ def main(args=None):
     for i in range(0, args.verbose):
         logging.getLogger(None).setLevel(logging.getLogger(None).level - 1)
 
+    File.filename_xform_command = args.filename_xform
+    File.data_xform_command = args.data_xform
+
     s3_backup.do_sync(
         local_path=args.path,
         s3_bucket=args.bucket,
-        storage_class=args.storage_class,
         cache_db=sqlite3.connect(args.cache_file),
-        filename_xform_cmd=args.filename_xform,
-        data_xform_cmd=args.data_xform
+        storage_class=args.storage_class,
     )
 
 

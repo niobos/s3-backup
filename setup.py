@@ -48,7 +48,8 @@ setup(
     packages=find_packages('src'),
     install_requires=[
         'boto3',
-        'humanize'
+        'humanize',
+        'attrs',
     ],
     extras_require={
         'dev': [
