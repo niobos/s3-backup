@@ -2,12 +2,16 @@ import contextlib
 import datetime
 import functools
 import hashlib
+import logging
 import os
 import pathlib
 import re
 import typing
 
-from s3_backup.backup_item import BackupItem, logger
+from s3_backup.backup_item import BackupItem
+
+
+logger = logging.getLogger(__name__)
 
 
 class LocalFile(BackupItem):
