@@ -89,13 +89,13 @@ def main(args=None):
     file_list = orig_file_list
 
     if args.filename_xform:
-        file_list = BackupItem.wrap_iter(
+        file_list = KeyTransform.wrap_iter(
             iter(file_list),
             lambda item: KeyTransform(args.filename_xform, item)
         )
 
     if args.data_xform:
-        file_list = BackupItem.wrap_iter(
+        file_list = DataTransform.wrap_iter(
             iter(file_list),
             lambda item: DataTransform(args.data_xform, item)
         )
