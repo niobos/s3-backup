@@ -3,7 +3,7 @@ import logging
 import sqlite3
 
 import s3_backup
-from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, BackupItem, DataTransform
+from s3_backup import __version__, FileScanner, LocalFile, KeyTransform, DataTransform
 
 logging.getLogger(None).setLevel(logging.INFO + 1)  # Set just above INFO
 log_file_handler = logging.StreamHandler()
@@ -12,6 +12,13 @@ log_file_handler.setFormatter(logging.Formatter(
 ))
 logging.getLogger(None).addHandler(log_file_handler)
 logger = logging.getLogger(None)
+
+
+class AddOptionValueTuple(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest, None) is None:
+            setattr(namespace, self.dest, [])
+        getattr(namespace, self.dest).append((option_string, values))
 
 
 def main(args=None):
@@ -25,7 +32,11 @@ def main(args=None):
     """
 
     parser = argparse.ArgumentParser('s3-backup',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                     description="Makes a backup of `path` to S3 bucket `bucket`. "
+                                                 "Filters can be applied to transform the list of local files to what "
+                                                 "you want to get on S3. Note that filters are applied in the order "
+                                                 "given on the command line.")
     parser.add_argument('--version', '-V', action='version', version=f"s3_backup v{__version__}")
 
     parser.add_argument('path',
@@ -44,28 +55,6 @@ def main(args=None):
                              "of this file can be reconstructed from the S3 bucket, "
                              "but that is an extensive operation.")
 
-    parser.add_argument('--data-xform',
-                        help="Use the given command to transform the data before uploading. "
-                             "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"$ORIG_FILENAME\" -` "
-                             "will encrypt the files with GnuPG before uploading. "
-                             "The command will receive the file on its stdin, and should output "
-                             "the transformed data to its stdout. The command is passed through "
-                             "/bin/bash, so you can use basic shell magic. The following environment "
-                             "variables are available to the command(line): $ORIG_FILENAME, $XFORM_FILENAME")
-    parser.add_argument('--filename-xform',
-                        help="Similar to --data-xform, but transform the filename instead of the "
-                             "file data. Make sure this transform is a consistent one-to-one mapping! "
-                             "Note that the command receives the filename on stdin, "
-                             "without a trailing newline, and should output without a trailing newline. "
-                             "Available environment variables: $FILENAME. E.g. `echo -n \"$FILENAME.gpg\"` "
-                             "will append a .gpg extension. "
-                             "The command can indicate 3 possible scenarios: (1) it exits with exit code 0 "
-                             "and outputs the desired filename to stdout. (2) it exits with exit code 0 "
-                             "and outputs nothing to stdout; this indicates the file should be considered to "
-                             "not exist. (3) it exits with exit code 124 and outputs the desired filename to "
-                             "stdout; this indicates the file should be ignored (assumed to be up-to-date on "
-                             "S3 without checking).")
-
     parser.add_argument('--verbose', '-v', action='count', default=0,
                         help="Increase verbosity, can be used multiple times for increased verbosity "
                              "(up to 11 times)")
@@ -76,6 +65,27 @@ def main(args=None):
                              "recent than the S3 object or if the size is different. "
                              "Enabling this option will only use filesize and hash to be used to "
                              "decide if uploading is needed.")
+
+    parser.add_argument('--data-xform',
+                        action=AddOptionValueTuple, dest='filter',
+                        help="Use the given command to transform the data before uploading. "
+                             "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"KEY\" -` "
+                             "will encrypt the files with GnuPG before uploading. "
+                             "The command will receive the file data on its stdin, and should output "
+                             "the transformed data to its stdout. The command is passed through "
+                             "/bin/bash, so you can use basic shell magic. The following environment "
+                             "variables are available to the command(line): $KEY")
+    parser.add_argument('--filename-xform',
+                        action=AddOptionValueTuple, dest='filter',
+                        help="Use the given command to ransform the filename/key of the objects. "
+                             "Make sure this transform is a consistent one-to-one mapping! "
+                             "Note that the command receives the filename on stdin, "
+                             "without a trailing newline, and should output without a trailing newline. "
+                             "Available environment variables: KEY. E.g. `echo -n \"$KEY.gpg\"` "
+                             "will append a .gpg extension. "
+                             "Returning nothing at all is a special case and will ignore this file "
+                             "(i.e. will pretend this file does not exist locally, not upload to S3, "
+                             "and maybe delete the item from S3 if it was already there)")
 
     args = parser.parse_args(args)
 
@@ -88,17 +98,22 @@ def main(args=None):
     orig_file_list = FileScanner(args.path)
     file_list = orig_file_list
 
-    if args.filename_xform:
-        file_list = KeyTransform.wrap_iter(
-            iter(file_list),
-            lambda item: KeyTransform(args.filename_xform, item)
-        )
+    if args.filter is not None:
+        for filter_name, value in args.filter:
+            if filter_name == '--filename-xform':
+                file_list = KeyTransform.wrap_iter(
+                    iter(file_list),
+                    lambda item: KeyTransform(value, item)
+                )
 
-    if args.data_xform:
-        file_list = DataTransform.wrap_iter(
-            iter(file_list),
-            lambda item: DataTransform(args.data_xform, item)
-        )
+            elif filter_name == '--data-xform':
+                file_list = DataTransform.wrap_iter(
+                    iter(file_list),
+                    lambda item: DataTransform(value, item)
+                )
+
+            else:
+                raise RuntimeError(f"Unrecognized filter {filter}")
 
     s3_backup.do_sync(
         file_list=iter(file_list),
