@@ -1,5 +1,7 @@
+import datetime
 import logging
 import os.path
+import pathlib
 import sqlite3
 import typing
 
@@ -7,32 +9,49 @@ import boto3
 import humanize
 
 from .__meta__ import __version__  # export package-wide
-from .file import File, IgnoreThisFile, FileDoesNotExist
-from .s3cache import S3cache
+from .backup_item import BackupItem
+from .data_transform import DataTransform
+from .key_transform import KeyTransform
+from .local_file import LocalFile
+from .s3cache import S3cache, S3ObjectInfo
 from .stats import Stats
 
 
 logger = logging.getLogger(__name__)
 
 
-def list_files(base_path: str) -> typing.Generator[str, None, None]:
-    """
-    Generator yielding files in the given directory (recursively)
+class FileScanner:
+    def __init__(self, base_path: typing.Union[pathlib.Path, str]):
+        self.base_path = str(pathlib.PurePath(base_path))
+        self.files_scanned = 0
+        self.bytes_scanned = 0
 
-    TODO: what does it do with symlinks?
-    """
-    if base_path.endswith('/'):
-        base_path = base_path[:-1]
+    def summary(self) -> str:
+        return f"Scanned {self.files_scanned} files, totalling {humanize.naturalsize(self.bytes_scanned, binary=True)}"
 
-    for dirname, dirs, files in os.walk(base_path):
-        for file in files:
-            file_path = os.path.join(dirname, file)
-            relative_file_path = file_path[(len(base_path)+1):]
-            yield relative_file_path
+    @staticmethod
+    def _recursive_scandir(dir: str) -> typing.Generator[os.DirEntry, None, None]:
+        with os.scandir(dir) as it:
+            for entry in it:
+                if entry.is_dir():
+                    for subentry in FileScanner._recursive_scandir(os.path.join(dir, entry.name)):
+                        yield subentry
+                else:
+                    yield entry
+
+    def __iter__(self) -> typing.Generator[LocalFile, None, None]:
+        base_path_len = len(self.base_path)
+        for entry in self._recursive_scandir(self.base_path):
+            if not entry.path.startswith(self.base_path):
+                raise RuntimeError("Path outside basedir: ", entry.path)
+            f = LocalFile(path=entry.path, key=entry.path[(base_path_len+1):])  # +1 for '/'
+            self.files_scanned += 1
+            self.bytes_scanned += f.stat().st_size
+            yield f
 
 
 def do_sync(
-        local_path: str,
+        file_list: typing.Iterator[BackupItem],
         s3_bucket: str,
         cache_db: sqlite3.Connection,
         storage_class: str = "STANDARD",
@@ -55,34 +74,33 @@ def do_sync(
     logger.info("Beginning scan of local filesystem")
     cache.clear_flags()
     stats = Stats()
-    for relative_filename in list_files(local_path):
-        logger.log(logging.INFO-1, f"Processing `{relative_filename}`")
+    for item in file_list:
+        logger.log(logging.INFO-1, f"Processing {item}")
 
-        file = File(
-            base_path=local_path,
-            relative_path=relative_filename,
-            s3_bucket=s3_bucket,
-            s3_cache=cache,
-            s3_client=s3_client,
+        try:
+            s3_info = cache[item.key()]
+            s3_info.metadata['size'] = s3_info.s3_size
+        except KeyError:
+            s3_info = None
+
+        upload_needed = item.should_upload(
+            s3_info.s3_modification_time if s3_info is not None else None,
+            s3_info.metadata if s3_info is not None else None,
         )
+        logger.log(logging.INFO-1, f"Should upload? {upload_needed.name}")
+        if upload_needed == BackupItem.ShouldUpload.DoUpload:
+            logger.info(f"Uploading {item} "
+                        f"to s3://{s3_bucket}/{item.key()} ({upload_needed.name})")
+            size = do_upload(
+                item,
+                s3_bucket,
+                s3_client,
+                cache,
+                storage_class,
+            )
+            stats.upload(size)
 
-        logger.log(logging.INFO-1, f"Transformed filename `{relative_filename}` => `{file.s3_key}`"
-                                   f"{ 'IGNORED' if file.ignore else ''}")
-        stats.scan(file.plaintext_size)
-
-        reason = file.upload_needed()
-        logger.log(logging.INFO-1, f"Should upload? {reason}")
-        if reason:
-            logger.info(f"Uploading `{relative_filename}` ("
-                        f"{humanize.naturalsize(file.plaintext_size, binary=True)}) "
-                        f"to s3://{file.s3_bucket}/{file.s3_key} ({reason})")
-            file.do_upload(storage_class=storage_class)
-            stats.upload(file.plaintext_size)
-
-        if file.s3_key != "":
-            # s3_key == "" indicates this file should be assumed not to exist locally
-            # No need to flag anyway (we'll run in to the UNIQUE constraint anyway)
-            cache.flag(file.s3_key)
+        cache.flag(item.key())
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
@@ -97,3 +115,46 @@ def do_sync(
 
     logger.log(logging.INFO+1, stats.summary())
     logger.log(logging.INFO+1, f"S3 cache contains: {cache.summary()}")
+
+
+class ByteCounter:
+    def __init__(self, underlying: typing.BinaryIO):
+        self.underlying = underlying
+        self.bytes = 0
+
+    def read(self, n: int = 0) -> bytes:
+        out = self.underlying.read(n)
+        self.bytes += len(out)
+        return out
+
+
+def do_upload(
+        item: BackupItem,
+        s3_bucket: str,
+        s3_client,
+        s3_cache: S3cache,
+        storage_class: str = "STANDARD") -> int:
+    with item.fileobj() as f:
+        counted_f = ByteCounter(f)
+        metadata = item.metadata()
+
+        if isinstance(metadata.get('size'), BackupItem.SizeMetadata):
+            del metadata['size']
+
+        _ = s3_client.upload_fileobj(
+            Fileobj=counted_f,
+            Bucket=s3_bucket,
+            Key=item.key(),
+            ExtraArgs={
+                'StorageClass': storage_class,
+                'Metadata': metadata,
+            },
+        )
+
+    s3_cache[item.key()] = S3ObjectInfo(
+        s3_size=counted_f.bytes,
+        s3_modification_time=datetime.datetime.now(),
+        metadata=metadata
+    )
+
+    return counted_f.bytes
