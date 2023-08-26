@@ -68,7 +68,7 @@ class S3cache:
 
             list_bucket_paginator = s3_client.get_paginator('list_objects_v2')
             for i, page in enumerate(list_bucket_paginator.paginate(Bucket=bucket)):
-                logger.log(logging.INFO-1, f"Parsing bucket list page {i} ({page['KeyCount']} items)...")
+                logger.log(logging.INFO, f"Parsing bucket list page {i} ({page['KeyCount']} items)...")
                 for s3_object in page.get('Contents', []):
                     object_info = s3_client.head_object(
                         Bucket=bucket,

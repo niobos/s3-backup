@@ -81,11 +81,12 @@ def do_sync(
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
-        logger.log(logging.INFO-1, f"Deleting `{key}`")
+        logger.info(f"Deleting `{key}`")
         s3_client.delete_object(
             Bucket=s3_bucket,
             Key=key,
         )
+        del cache[key]
     logger.info("Delete done")
 
     logger.info(f"S3 cache contains: {cache.summary()}")
