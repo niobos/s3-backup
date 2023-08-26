@@ -45,7 +45,7 @@ def main(args=None):
 
     parser.add_argument('--data-xform',
                         help="Use the given command to transform the data before uploading. "
-                             "E.g. `gpg --encrypt-to backup-key --sign --set-filename \"$ORIG_FILENAME\" -` "
+                             "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"$ORIG_FILENAME\" -` "
                              "will encrypt the files with GnuPG before uploading. "
                              "The command will receive the file on its stdin, and should output "
                              "the transformed data to its stdout. The command is passed through "
