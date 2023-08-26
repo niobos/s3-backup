@@ -255,10 +255,6 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
                 self.large_files_bytes += size
                 yield entry
 
-        # TODO: don't emit the small files anymore once the ZIP is validated
-        for entry in small_files:
-            yield entry
-
         for entry in group_files(small_files, min_size=self.size_threshold):
             entry._key = entry._key + self.suffix
 
