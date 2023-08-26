@@ -105,6 +105,8 @@ def do_sync(
             cache.flag(item.key())
         except FileNotFoundError:
             logger.warning(f"File vanished before we could backup: {item}")
+        except PermissionError as e:
+            logger.warning(f"{e}; skipping: {item}")
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
