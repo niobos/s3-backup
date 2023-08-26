@@ -63,7 +63,7 @@ def test_exclude_re():
     ]
     remaining_items = list(KeyTransformSubWrapper(items, '^f.*', ''))
     assert len(remaining_items) == 1
-    assert remaining_items[0].underlying == items[1]
+    assert remaining_items[0] == items[1]
 
 
 def test_add_key_suffix():

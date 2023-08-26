@@ -37,6 +37,7 @@ class LocalFile(BackupItem):
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} " \
+               f"key={self._key} " \
                f"path={self.path}>"
 
     def key(self) -> str:

@@ -157,10 +157,15 @@ class KeyTransformSubWrapper(BackupItemWrapper):
         super().__init__(underlying_it)
         self.sub_pattern = re.compile(sub_pattern)
         self.sub_replacement = sub_replacement
+        self.passed = 0
+        self.renamed = 0
         self.skipped = 0
 
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.sub_pattern} -> {repr(self.sub_replacement)})"
+
     def summary(self) -> str:
-        return f"Skipped {self.skipped} files"
+        return f"Passed {self.passed}, renamed {self.renamed}, skipped {self.skipped} files"
 
     def __iter__(self) -> typing.Generator[KeyTransformCmd, None, None]:
         for item in self.underlying_it:
@@ -171,6 +176,8 @@ class KeyTransformSubWrapper(BackupItemWrapper):
 
             if wrapped_item.key() == item.key():
                 # Wrapping would change nothing, save some memory & overhead by returning the original
+                self.passed += 1
                 yield item
             else:
+                self.renamed += 1
                 yield wrapped_item
