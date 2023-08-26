@@ -72,7 +72,7 @@ def test_upload_needed():
             st_size=12,
         )
         f._cache['digest'] = {'rand': "{rand}yyy"}  # different hash
-        assert f.upload_needed().startswith("different hash")
+        assert f.upload_needed().startswith("more recent locally & different hash")
 
         f._cache['digest'] = {'sum': '{sum}xxx'}  # incompatible hash
         assert f.upload_needed().startswith("could not get plaintext_hash of S3 object")
