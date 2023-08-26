@@ -43,10 +43,13 @@ class FileScanner:
         for entry in self._recursive_scandir(self.base_path):
             if not entry.path.startswith(self.base_path):
                 raise RuntimeError("Path outside basedir: ", entry.path)
-            f = LocalFile(path=entry.path, key=entry.path[(base_path_len+1):])  # +1 for '/'
-            self.files_scanned += 1
-            self.bytes_scanned += f.stat().st_size
-            yield f
+            try:
+                f = LocalFile(path=entry.path, key=entry.path[(base_path_len+1):])  # +1 for '/'
+                self.bytes_scanned += f.stat().st_size  # may raise
+                self.files_scanned += 1  # do stat() first, so this count is correct when it raises
+                yield f
+            except FileNotFoundError:
+                logger.warning(f"File vanished before we could backup: {entry.path}")
 
 
 def do_sync(
@@ -83,22 +86,25 @@ def do_sync(
         except KeyError:
             s3_info = None
 
-        upload_needed = item.should_upload(
-            s3_info.s3_modification_time if s3_info is not None else None,
-            s3_info.metadata if s3_info is not None else None,
-        )
-        logger.log(logging.INFO-1, f"Should upload? {upload_needed.name}")
-        if upload_needed == BackupItem.ShouldUpload.DoUpload:
-            size = do_upload(
-                item,
-                s3_bucket,
-                s3_client,
-                cache,
-                storage_class,
+        try:
+            upload_needed = item.should_upload(
+                s3_info.s3_modification_time if s3_info is not None else None,
+                s3_info.metadata if s3_info is not None else None,
             )
-            stats.upload(size)
+            logger.log(logging.INFO-1, f"Should upload? {upload_needed.name}")
+            if upload_needed == BackupItem.ShouldUpload.DoUpload:
+                size = do_upload(
+                    item,
+                    s3_bucket,
+                    s3_client,
+                    cache,
+                    storage_class,
+                )
+                stats.upload(size)
 
-        cache.flag(item.key())
+            cache.flag(item.key())
+        except FileNotFoundError:
+            logger.warning(f"File vanished before we could backup: {item}")
 
     logger.info("Deleting S3 objects not corresponding to local files (anymore)...")
     for key in cache.iterate_unflagged():
