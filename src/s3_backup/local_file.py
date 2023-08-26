@@ -8,6 +8,7 @@ import pathlib
 import re
 import typing
 
+from s3_backup import global_settings
 from s3_backup.backup_item import BackupItem
 
 
@@ -18,8 +19,6 @@ class LocalFile(BackupItem):
     """
     Represents a local file that needs to be backed up
     """
-    trust_mtime = True
-
     def __init__(
             self,
             path: typing.Union[pathlib.Path, str],
@@ -70,7 +69,7 @@ class LocalFile(BackupItem):
                         f"different size ({self.stat().st_size} != {s3_size})")
             return BackupItem.ShouldUpload.DoUpload
 
-        if self.trust_mtime:
+        if global_settings.trust_mtime:
             local_mtime = datetime.datetime.fromtimestamp(self.stat().st_mtime)
             if local_mtime < modification_time:
                 return BackupItem.ShouldUpload.DontUpload  # mtimes are trustworthy, no need to check hash
@@ -91,7 +90,7 @@ class LocalFile(BackupItem):
             logger.warning(f"{self} needs uploading: could not get plaintext_hash of S3 object: {e}")
             return BackupItem.ShouldUpload.DoUpload
 
-        if self.trust_mtime:
+        if global_settings.trust_mtime:
             # Since we arrived here, the local file had a newer mtime,
             # but the digest was still correct.
             # Bump the locally cached mtime of the S3 object, so we don't
