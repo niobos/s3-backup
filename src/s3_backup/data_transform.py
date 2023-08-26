@@ -106,3 +106,12 @@ class DataTransform(BackupItem):
             modification_time=modification_time,
             metadata=underlying_metadata,
         )
+
+    @staticmethod
+    def wrap_iter(
+            it: typing.Iterator["BackupItem"],
+            xform_command: str,
+    ) -> typing.Generator["BackupItem", None, None]:
+        for item in it:
+            wrapped_item = DataTransform(xform_command, item)
+            yield wrapped_item
