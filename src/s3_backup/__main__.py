@@ -99,7 +99,7 @@ def main(args=None):
                              "Enabling this option will only use filesize and hash to be used to "
                              "decide if uploading is needed.")
 
-    parser.add_argument('--group-files-smaller-than', metavar="SIZE",
+    parser.add_argument('--group-files-smaller-than', metavar="SIZE", type=parse_size,
                         action=AddOptionValueTuple, dest='filter',
                         help="Group files smaller than the given size together. "
                              "Note that this filter needs to know the size of the files beforehand, "
@@ -107,7 +107,7 @@ def main(args=None):
     parser.add_argument('--data-xform', metavar="COMMAND",
                         action=AddOptionValueTuple, dest='filter',
                         help="Use the given command to transform the data before uploading. "
-                             "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"KEY\" -` "
+                             "E.g. `gpg --encrypt -r backup-key --sign --set-filename \"$KEY\" -` "
                              "will encrypt the files with GnuPG before uploading. "
                              "The command will receive the file data on its stdin, and should output "
                              "the transformed data to its stdout. The command is passed through "
@@ -155,7 +155,7 @@ def main(args=None):
             elif filter_name == '--group-files-smaller-than':
                 f = GroupSmallFilesWrapper(
                     file_list,
-                    parse_size(value),
+                    value,
                 )
 
             else:
