@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class GroupedItem(BackupItem):
     def __init__(self, key: str, underlying: typing.List[BackupItem], size: int = None):
         self._key = key
-        self.underlying_list = underlying
+        self.underlying_list = sorted(underlying, key=lambda e: e.key())
         self.size = size
 
     def key(self) -> str:
