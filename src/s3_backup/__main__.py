@@ -3,6 +3,8 @@ import logging
 import re
 import sqlite3
 
+import boto3
+
 import s3_backup
 from s3_backup import __version__, FileScanner, LocalFile, global_settings
 from s3_backup.data_transform import DataTransformWrapper
@@ -75,6 +77,9 @@ def main(args=None):
     parser.add_argument('bucket',
                         help="S3 bucket to upload to")
 
+    parser.add_argument('--profile', type=str, default='default',
+                        help="AWS profile to use")
+
     parser.add_argument('--storage-class', default="STANDARD",
                         help="Storage class to use. See " 
                              "https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html "
@@ -96,7 +101,7 @@ def main(args=None):
                         help="Do not trust file modification time to identify if a file needs uploading. "
                              "By default, a file will only be uploaded if the modification time is more "
                              "recent than the S3 object or if the size is different. "
-                             "Enabling this option will only use filesize and hash to be used to "
+                             "Enabling this option will only use file size and hash to "
                              "decide if uploading is needed.")
 
     parser.add_argument('--group-files-smaller-than', metavar="SIZE", type=parse_size,
@@ -115,7 +120,7 @@ def main(args=None):
                              "variables are available to the command(line): $KEY")
     parser.add_argument('--filename-xform', metavar="COMMAND",
                         action=AddOptionValueTuple, dest='filter',
-                        help="Use the given command to ransform the filename/key of the objects. "
+                        help="Use the given command to transform the filename/key of the objects. "
                              "Make sure this transform is a consistent one-to-one mapping! "
                              "Note that the command receives the filename on stdin, "
                              "without a trailing newline, and should output without a trailing newline. "
@@ -127,7 +132,9 @@ def main(args=None):
     parser.add_argument('--key-sub', nargs=2, metavar="REGEX_SUB",
                         action=AddOptionValueTuple, dest='filter',
                         help="Do regex substitution on keys. If the resulting key is the empty string, the file is"
-                             "skipped. Regex is *not* anchored. Only a single replacement will be done per key.")
+                             "skipped. Regex is *not* anchored. Only a single replacement will be done per key. "
+                             "e.g. `--key-sub '^\\.ssh/.*' ''` will skip all files in the .ssh directory, "
+                             "while `--key-sub '(.*)' '\\1.gpg'` will append .gpg to every key.")
 
     args = parser.parse_args(args)
 
@@ -176,6 +183,8 @@ def main(args=None):
             filters.append(f)
             file_list = iter(f)
 
+    session = boto3.session.Session(profile_name=args.profile)
+    s3_client = session.client('s3')
 
     logger.log(logging.INFO+1, f"Doing {'DRY RUN ' if global_settings.dry_run else ''}"
                                f"sync from `{args.path}` to `{args.bucket}`")
@@ -184,6 +193,7 @@ def main(args=None):
         s3_bucket=args.bucket,
         cache_db=sqlite3.connect(args.cache_file),
         storage_class=args.storage_class,
+        s3_client=s3_client,
     )
 
     for f in filters:
