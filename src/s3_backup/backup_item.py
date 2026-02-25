@@ -1,4 +1,6 @@
+import contextlib
 import enum
+import io
 import logging
 import typing
 import abc
@@ -14,7 +16,7 @@ class BackupItem(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
+    def fileobj(self) -> contextlib.AbstractContextManager[io.Reader]:
         raise NotImplementedError()
 
     class SizeMetadata(str):

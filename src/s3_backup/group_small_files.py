@@ -46,7 +46,7 @@ class GroupedItem(BackupItem):
         return f"<GroupedItem {self._key}: {self.underlying_list}>"
 
     @contextlib.contextmanager
-    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
+    def fileobj(self) -> typing.Generator[io.Reader, None, None]:
         zip_blob = io.BytesIO()
         with zipfile.ZipFile(zip_blob, "w", compression=zipfile.ZIP_STORED) as zip_file:
             for entry in self.underlying_list:
@@ -221,7 +221,7 @@ class Tree:
                 del self.key_prefixes[key_prefix]
 
 
-def group_files(items: typing.Iterator[BackupItem], min_size: int) -> typing.Iterator[GroupedItem]:
+def group_files(items: typing.Iterable[BackupItem], min_size: int) -> typing.Iterator[GroupedItem]:
     logger.log(logging.INFO-1, "Starting search to group items...")
     tree = Tree()
     tree.add_elements((

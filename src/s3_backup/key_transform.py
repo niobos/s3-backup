@@ -1,5 +1,7 @@
+import contextlib
 import datetime
 import functools
+import io
 import logging
 import os
 import re
@@ -48,7 +50,7 @@ class KeyTransformCmd(BackupItem):
     def size(self) -> typing.Optional[int]:
         return self.underlying.size()
 
-    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
+    def fileobj(self) -> contextlib.AbstractContextManager[io.Reader]:
         return self.underlying.fileobj()
 
     def metadata(self) -> typing.Mapping[str, str]:
@@ -126,7 +128,7 @@ class KeyTransformSub(BackupItem):
     def size(self) -> typing.Optional[int]:
         return self.underlying.size()
 
-    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
+    def fileobj(self) -> contextlib.AbstractContextManager[io.Reader]:
         return self.underlying.fileobj()
 
     def metadata(self) -> typing.Mapping[str, str]:
@@ -179,7 +181,7 @@ class KeyTransformSubWrapper(BackupItemWrapper):
     def summary(self) -> str:
         return f"Passed {self.passed}, renamed {self.renamed}, skipped {self.skipped} files"
 
-    def __iter__(self) -> typing.Generator[KeyTransformCmd, None, None]:
+    def __iter__(self) -> typing.Generator[BackupItem, None, None]:
         for item in self.underlying_it:
             wrapped_item = KeyTransformSub(item, self.sub_pattern, self.sub_replacement)
             if wrapped_item.key() == "":
