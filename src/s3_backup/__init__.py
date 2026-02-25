@@ -33,16 +33,14 @@ class FileScanner:
         with os.scandir(dir) as it:
             for entry in it:
                 if entry.is_dir():
-                    for subentry in FileScanner._recursive_scandir(os.path.join(dir, entry.name)):
-                        yield subentry
+                    yield from FileScanner._recursive_scandir(os.path.join(dir, entry.name))
                 else:
                     yield entry
 
     def __iter__(self) -> typing.Generator[LocalFile, None, None]:
         base_path_len = len(self.base_path)
         for entry in self._recursive_scandir(self.base_path):
-            if not entry.path.startswith(self.base_path):
-                raise RuntimeError("Path outside basedir: ", entry.path)
+            assert entry.path.startswith(self.base_path), f"Path outside basedir: {entry.path}"
             try:
                 f = LocalFile(path=entry.path, key=entry.path[(base_path_len+1):])  # +1 for '/'
                 self.bytes_scanned += f.stat().st_size  # may raise

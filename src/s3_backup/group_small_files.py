@@ -1,3 +1,20 @@
+"""
+This filter is designed to work around minimum object size restrictions. On S3, when using Glacier / Deep Archive, you
+pay for a minimum size of 128kB. So uploading many 1kB files is relatively expensive. This filter combines small files
+into a large ZIP.
+
+The algorithm is optimized to avoid uploads, and to make it easy to find a particular file based on its key (even if you
+don't know if it will be ZIPed or not).
+
+When iterating over the files, it passes through all files >= threshold, and buffers files smaller. At the end of the
+iteration, it looks at all buffered files. It will group files with the same prefix (i.e. the same start of their key,
+without any special consideration for the `/` character). The algorithm will shorten the prefix (and thus include more
+and more files) until the selected group of files is larger than the threshold. That group will then be emitted as a ZIP
+file.
+
+To find a particular file, just look it up based on its key. If it's not present on S3, look for a ZIP file with the
+longest matching prefix.
+"""
 import contextlib
 import dataclasses
 import datetime
@@ -11,7 +28,7 @@ import humanize
 
 from s3_backup import BackupItem, global_settings
 from s3_backup.backup_item import BackupItemWrapper
-
+from s3_backup.stats import MinMax
 
 logger = logging.getLogger(__name__)
 
@@ -218,8 +235,7 @@ def group_files(items: typing.Iterator[BackupItem], min_size: int) -> typing.Ite
 
     def recurse_tree(node: Tree, prefix: str = ''):
         for child_prefix, child in node.key_prefixes.items():
-            for item in recurse_tree(child, prefix + child_prefix):
-                yield item
+            yield from recurse_tree(child, prefix + child_prefix)
 
         if len(node.elements) > 0:
             yield GroupedItem(
@@ -241,11 +257,9 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
         self.size_threshold = size_threshold
         self.suffix = '*~.zip'
         self.num_zip_files = 0
-        self.min_size = [None, None]  # Keep the 2 smallest files
+        self.size = MinMax(min_amount=2, max_amount=1)  # Keep the 2 smallest files
         # The "leftover" zip will always be smallest, but is not representative
-        self.min_elements = None
-        self.max_size = None
-        self.max_elements = None
+        self.elements = MinMax()
         self.small_files = 0
         self.small_files_bytes = 0
         self.large_files = 0
@@ -260,11 +274,11 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
                f"{humanize.naturalsize(self.small_files_bytes, binary=True)}, " \
                f"each <{humanize.naturalsize(self.size_threshold, binary=True)}\n" \
                f"Individual ZIPs contain between " \
-               f"{humanize.naturalsize(self.min_size[1], binary=True)} and " \
-               f"{humanize.naturalsize(self.max_size, binary=True)} " \
-               f"({humanize.naturalsize(self.min_size[0], binary=True)} for the leftover ZIP)\n" \
-               f"and between {self.min_elements} and " \
-               f"{self.max_elements} items\n" \
+               f"{humanize.naturalsize(self.size.minimum[1], binary=True)} and " \
+               f"{humanize.naturalsize(self.size.maximum[0], binary=True)} " \
+               f"({humanize.naturalsize(self.size.minimum[0], binary=True)} for the leftover ZIP)\n" \
+               f"and between {self.elements.minimum[0]} and " \
+               f"{self.elements.maximum[0]} items\n" \
                f"({self.large_files} files, {humanize.naturalsize(self.large_files_bytes, binary=True)}, " \
                f"each >={humanize.naturalsize(self.size_threshold, binary=True)}, passed through)"
 
@@ -296,18 +310,5 @@ class GroupSmallFilesWrapper(BackupItemWrapper):
             yield entry
 
             self.num_zip_files += 1
-
-            if self.min_size[0] is None or entry.size < self.min_size[0]:
-                self.min_size[1] = self.min_size[0]
-                self.min_size[0] = entry.size
-            elif self.min_size[1] is None or entry.size < self.min_size[1]:
-                self.min_size[1] = entry.size
-
-            if self.max_size is None or entry.size > self.max_size:
-                self.max_size = entry.size
-
-            if self.min_elements is None or len(entry.underlying_list) < self.min_elements:
-                self.min_elements = len(entry.underlying_list)
-
-            if self.max_elements is None or len(entry.underlying_list) > self.max_elements:
-                self.max_elements = len(entry.underlying_list)
+            self.size.update(entry.size)
+            self.elements.update(len(entry.underlying_list))

@@ -1,3 +1,5 @@
+import numbers
+
 import humanize
 
 
@@ -19,3 +21,20 @@ class Stats:
         Uploaded {self.upload_files} files, totalling {humanize.naturalsize(self.upload_bytes, binary=True)}
         Deleted {self.delete_files} files
         """
+
+
+class MinMax:
+    def __init__(self, min_amount: int = 1, max_amount: int = 1) -> None:
+        self.minimum = []
+        self.maximum = []
+        self._min_amount = min_amount
+        self._max_amount = max_amount
+
+    def update(self, n: numbers.Number) -> None:
+        if self._max_amount > 0:
+            self.maximum = sorted([*self.maximum, n])[-self._max_amount:]
+        if self._min_amount > 0:
+            self.minimum = sorted([*self.minimum, n])[:self._min_amount]
+
+    def __repr__(self):
+        return f"MinMax({self.minimum}, {self.maximum})"
