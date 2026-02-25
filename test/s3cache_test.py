@@ -8,7 +8,7 @@ import pytest
 from s3_backup.s3cache import S3cache, S3ObjectInfo
 
 
-@moto.mock_s3
+@moto.mock_aws
 def test_fill_cache():
     bucket_name = 'test'
 
@@ -70,7 +70,7 @@ def test_fill_cache():
     assert 'a' in c
 
 
-@moto.mock_s3
+@moto.mock_aws
 def test_flagging():
     bucket_name = 'test'
 

@@ -13,7 +13,7 @@ from s3_backup.data_transform import DataTransformWrapper
 from s3_backup.key_transform import KeyTransformCmdWrapper
 
 
-@moto.mock_s3
+@moto.mock_aws
 def test_sync(tmp_path):
     bucket_name = 'test'
 
