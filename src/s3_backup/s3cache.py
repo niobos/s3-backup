@@ -27,13 +27,17 @@ class S3cache:
         self._upgrade_schema()  # may raise
 
     def _upgrade_schema(self):
-        cursor = self.cache_db.execute("SELECT `name` FROM `sqlite_master` WHERE `type`='table' AND `name`='s3_object_info';")
+        cursor = self.cache_db.execute("SELECT `name` "
+                                       "FROM `sqlite_master` "
+                                       "WHERE `type`='table' AND `name`='s3_object_info';")
         table_exists = cursor.fetchone()
         if table_exists is not None:
             # v2 exists, done
             return
 
-        cursor = self.cache_db.execute("SELECT `name` FROM `sqlite_master` WHERE `type`='table' AND `name`='s3_cache';")
+        cursor = self.cache_db.execute("SELECT `name` "
+                                       "FROM `sqlite_master` "
+                                       "WHERE `type`='table' AND `name`='s3_cache';")
         table_exists = cursor.fetchone()
         if table_exists is not None:
             logger.warning("Upgrading cache schema from v1 -> v2...")
@@ -125,9 +129,9 @@ class S3cache:
                                                 "value": value
                                             })
 
-        self = cls(cache_db)
-        logger.log(logging.INFO-1, f"Cache filled: {self.summary()}")
-        return self
+        obj = cls(cache_db_uri)
+        logger.log(logging.INFO-1, f"Cache filled: {obj.summary()}")
+        return obj
 
     def summary(self) -> str:
         summary = self.cache_db.execute("SELECT COUNT(`key`), SUM(`size`) FROM `s3_object_info`;").fetchone()

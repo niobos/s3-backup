@@ -77,7 +77,7 @@ def main(args=None):
     parser.add_argument('bucket',
                         help="S3 bucket to upload to")
 
-    parser.add_argument('--profile', type=str, default='default',
+    parser.add_argument('--profile', type=str,
                         help="AWS profile to use")
 
     parser.add_argument('--storage-class', default="STANDARD",
