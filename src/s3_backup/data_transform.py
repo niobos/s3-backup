@@ -19,7 +19,7 @@ def stdin_pump(data: io.BytesIO, fd: typing.BinaryIO) -> None:
         fd.write(blob)
 
 
-class DataXformReadWrapper(io.Reader):
+class DataXformReadWrapper:
     """
     Helper class to Upload an S3 object while its content is generated on
     the fly.
@@ -29,7 +29,7 @@ class DataXformReadWrapper(io.Reader):
     """
     def __init__(self,
                  xform: str,
-                 fileobj: io.Reader,
+                 fileobj: typing.BinaryIO,
                  extra_env: dict = None
                  ):
         xform_env = os.environ.copy()
@@ -95,7 +95,7 @@ class DataTransform(BackupItem):
         return self.underlying.key()
 
     @contextlib.contextmanager
-    def fileobj(self) -> typing.Generator[io.Reader, None, None]:
+    def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
         with self.underlying.fileobj() as f_orig:
             f_wrapped = DataXformReadWrapper(
                 self.xform_command, f_orig,
