@@ -10,12 +10,13 @@ from s3_backup.group_small_files import group_files, GroupedItem
 
 
 class MockItem(BackupItem):
-    def __init__(self, key: str, size: int = 1):
+    def __init__(self, key: str, size: int = 1, mtime: typing.Optional[datetime.datetime] = None):
         self._key = key
         self._size = size
+        self._mtime = None
 
     def __repr__(self):
-        return f"<Mock {self._key} {self._size}>"
+        return f"<Mock {self._key} {self._size} {self._mtime}>"
 
     def key(self) -> str:
         return self._key
@@ -36,6 +37,9 @@ class MockItem(BackupItem):
 
     def hash(self) -> str:
         return self._key
+
+    def mtime(self) -> typing.Optional[float]:
+        return self._mtime
 
 
 def test_grouping_1():
@@ -69,9 +73,12 @@ def test_grouping_2():
 
 
 class MemoryItem(BackupItem):
-    def __init__(self, key: str, content: bytes = b'a'):
+    def __init__(self, key: str, content: bytes = b'a', mtime: typing.Optional[float] = None):
         self._key = key
         self.content = content
+        if mtime is None:
+            mtime = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
+        self._mtime = mtime
 
     def __repr__(self) -> str:
         return f"<MemoryItem {self._key}>"
@@ -83,7 +90,7 @@ class MemoryItem(BackupItem):
         return len(self.content)
 
     def mtime(self) -> typing.Optional[float]:
-        return datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
+        return self._mtime
 
     @contextlib.contextmanager
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:
@@ -98,7 +105,7 @@ class MemoryItem(BackupItem):
         return BackupItem.ShouldUpload.DoUpload
 
     def hash(self) -> str:
-        return self._key
+        return str(self.content)
 
 
 def test_zip():
@@ -167,3 +174,18 @@ def test_sorting_flatten():
         modification_time=datetime.datetime.now() - datetime.timedelta(minutes=1),
         metadata=previous.metadata(),
     ) != BackupItem.ShouldUpload.DoUpload
+
+def test_rename():
+    entries = [
+        MemoryItem("foo", b"whatever"),
+        MemoryItem("bar", b"something"),
+    ]
+    g1 = GroupedItem("a", entries)
+    g1_mtime = datetime.datetime.fromtimestamp(g1.mtime())
+    m1 = g1.metadata()
+
+    entries[0] = MemoryItem("foo_renamed", entries[0].content, entries[0]._mtime)
+    g2 = GroupedItem("a", entries)
+    m2 = g2.metadata()
+
+    assert g2.should_upload(modification_time=g1_mtime, metadata=m1) == BackupItem.ShouldUpload.DoUpload

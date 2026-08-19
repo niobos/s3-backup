@@ -129,7 +129,7 @@ class S3cache:
                                                 "value": value
                                             })
 
-        obj = cls(cache_db_uri)
+        obj = cls(cache_db)
         logger.log(logging.INFO-1, f"Cache filled: {obj.summary()}")
         return obj
 

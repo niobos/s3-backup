@@ -111,11 +111,6 @@ class GroupedItem(BackupItem):
             return BackupItem.ShouldUpload.DoUpload
         # else:
 
-        if global_settings.trust_mtime:
-            if self.mtime() <= modification_time.timestamp():
-                return BackupItem.ShouldUpload.DontUpload
-            # else: check hashes
-
         # check metadata. Start with the cheap methods,
         # only run more expensive checks if the cheaper ones don't see a difference
         num_items = str(self.num_items())
@@ -129,6 +124,12 @@ class GroupedItem(BackupItem):
             logger.info(f"{self} needs uploading: "
                         f"list-hash differs: {list_hash} != {metadata.get('list-hash', '')}")
             return BackupItem.ShouldUpload.DoUpload
+
+        # Check mtime after checking the list of files. Otherwise we won't notice that a file was renamed
+        if global_settings.trust_mtime:
+            if self.mtime() <= modification_time.timestamp():
+                return BackupItem.ShouldUpload.DontUpload
+            # else: check hashes
 
         content_hash = self.content_hash()
         if content_hash != metadata.get('content-hash', ''):
