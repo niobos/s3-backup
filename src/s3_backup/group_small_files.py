@@ -50,19 +50,23 @@ class GroupedItem(BackupItem):
         zip_blob = io.BytesIO()
         with zipfile.ZipFile(zip_blob, "w", compression=zipfile.ZIP_STORED) as zip_file:
             for entry in self.underlying_list:
-                mtime = entry.mtime()
-                if mtime < 315532800:  # minimum mtime ZIP supports
-                    logger.warning(f"Capping mtime to 1980-01-01 to add to ZIP: {entry}")
-                    mtime = 315532800  # cap to 1980-01-01 00:00:00
-                mtime = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc)
-                with entry.fileobj() as entry_fileobj:
-                    zip_file.writestr(
-                        zipfile.ZipInfo(
-                            entry.key(),
-                            (mtime.year, mtime.month, mtime.day, mtime.hour, mtime.minute, mtime.second),
-                        ),
-                        entry_fileobj.read(),
-                    )
+                try:
+                    mtime = entry.mtime()
+                    if mtime < 315532800:  # minimum mtime ZIP supports
+                        logger.warning(f"Capping mtime to 1980-01-01 to add to ZIP: {entry}")
+                        mtime = 315532800  # cap to 1980-01-01 00:00:00
+                    mtime = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc)
+                    with entry.fileobj() as entry_fileobj:
+                        zip_file.writestr(
+                            zipfile.ZipInfo(
+                                entry.key(),
+                                (mtime.year, mtime.month, mtime.day, mtime.hour, mtime.minute, mtime.second),
+                            ),
+                            entry_fileobj.read(),
+                        )
+                except FileNotFoundError:
+                    logger.warning(f"File vanished before we could backup: {entry}")
+                    # swallow the error and continue with the rest
         zip_blob.seek(0)
         yield zip_blob
 
