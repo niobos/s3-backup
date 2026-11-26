@@ -10,7 +10,7 @@ import humanize
 
 from . import global_settings
 from .__meta__ import __version__  # export package-wide
-from .backup_item import BackupItem
+from .backup_item import BackupItem, ShouldUploadDecision
 from .local_file import LocalFile
 from .s3cache import S3cache, S3ObjectInfo
 from .stats import Stats
@@ -91,7 +91,7 @@ def do_sync(
             )
             logger.log(logging.INFO-1, f"Should upload? {upload_needed.decision.name}")
             stats.upload_decision(upload_needed)
-            if upload_needed.decision == BackupItem.ShouldUploadDecision.DoUpload:
+            if upload_needed.decision == ShouldUploadDecision.DoUpload:
                 size = do_upload(
                     item,
                     s3_bucket,

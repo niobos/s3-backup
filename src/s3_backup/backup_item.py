@@ -8,6 +8,15 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
+class ShouldUploadDecision(enum.Enum):
+    DontUpload = enum.auto()
+    DoUpload = enum.auto()
+    UpdateModificationTimeOnly = enum.auto()
+
+@dataclasses.dataclass(frozen=True)
+class ShouldUpload:
+    decision: ShouldUploadDecision
+    reason: typing.Optional[str] = None
 
 class BackupItem(abc.ABC):
     @abc.abstractmethod
@@ -33,16 +42,6 @@ class BackupItem(abc.ABC):
         if it is not the actual size.
         """
         return {}
-
-    class ShouldUploadDecision(enum.Enum):
-        DontUpload = enum.auto()
-        DoUpload = enum.auto()
-        UpdateModificationTimeOnly = enum.auto()
-
-    @dataclasses.dataclass(frozen=True)
-    class ShouldUpload:
-        decision: BackupItem.ShouldUploadDecision
-        reason: typing.Optional[str] = None
 
     @abc.abstractmethod
     def should_upload(

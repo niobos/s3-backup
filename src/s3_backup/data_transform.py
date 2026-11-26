@@ -7,7 +7,7 @@ import subprocess
 import threading
 import typing
 
-from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper
+from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper, ShouldUpload
 
 
 def stdin_pump(data: io.BytesIO, fd: typing.BinaryIO) -> None:
@@ -117,7 +117,7 @@ class DataTransform(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
-    ) -> BackupItem.ShouldUpload:
+    ) -> ShouldUpload:
         if modification_time is None:  # not on S3
             return self.underlying.should_upload(None, None)
         # else:

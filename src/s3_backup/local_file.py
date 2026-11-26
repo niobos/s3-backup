@@ -9,7 +9,7 @@ import re
 import typing
 
 from s3_backup import global_settings
-from s3_backup.backup_item import BackupItem
+from s3_backup.backup_item import BackupItem, ShouldUpload, ShouldUploadDecision
 
 
 logger = logging.getLogger(__name__)
@@ -57,22 +57,22 @@ class LocalFile(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]]
-    ) -> BackupItem.ShouldUpload:
+    ) -> ShouldUpload:
         if modification_time is None:
             logger.info(f"{self} needs uploading: "
                         f"Not on S3")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "not on S3")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "not on S3")
 
         s3_size = int(metadata.get('size', -1))
         if self.stat().st_size != s3_size:
             logger.info(f"{self} needs uploading: "
                         f"different size ({self.stat().st_size} != {s3_size})")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "size changed")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "size changed")
 
         if global_settings.trust_mtime:
             local_mtime = datetime.datetime.fromtimestamp(self.mtime())
             if local_mtime < modification_time:
-                return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DontUpload, "mtime old enough")  # mtimes are trustworthy, no need to check hash
+                return ShouldUpload(ShouldUploadDecision.DontUpload, "mtime old enough")  # mtimes are trustworthy, no need to check hash
             # else: check digest below
 
         try:
@@ -82,23 +82,23 @@ class LocalFile(BackupItem):
                 logger.info(f"{self} needs uploading: "
                             f"more recent locally & different hash "
                             f"({my_digest} != {metadata['hash']})")
-                return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "hash changed")
+                return ShouldUpload(ShouldUploadDecision.DoUpload, "hash changed")
         except (AttributeError,  # regex doesn't match
                 KeyError,  # hash not present in metadata
                 TypeError,  # hash is None
                 ValueError,  # algorithm isn't known
                 ) as e:
             logger.warning(f"{self} needs uploading: could not get plaintext_hash of S3 object: {e}")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "hash not available")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "hash not available")
 
         if global_settings.trust_mtime:
             # Since we arrived here, the local file had a newer mtime,
             # but the digest was still correct.
             # Bump the locally cached mtime of the S3 object, so we don't
             # need to check the digest until the file is touched
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.UpdateModificationTimeOnly)
+            return ShouldUpload(ShouldUploadDecision.UpdateModificationTimeOnly)
         else:
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DontUpload)
+            return ShouldUpload(ShouldUploadDecision.DontUpload)
 
     @functools.lru_cache(maxsize=None)
     def stat(self) -> os.stat_result:

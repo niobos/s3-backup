@@ -3,6 +3,7 @@ import numbers
 import humanize
 
 from s3_backup import BackupItem
+from s3_backup.backup_item import ShouldUploadDecision, ShouldUpload
 
 
 class Stats:
@@ -12,8 +13,8 @@ class Stats:
         self.delete_files = 0
         self.upload_decision_reason = {}
 
-    def upload_decision(self, decision: BackupItem.ShouldUpload) -> None:
-        if decision.decision == BackupItem.ShouldUploadDecision.DoUpload:
+    def upload_decision(self, decision: ShouldUpload) -> None:
+        if decision.decision == ShouldUploadDecision.DoUpload:
             self.upload_decision_reason[decision.reason] = self.upload_decision_reason.get(decision.reason, 0) + 1
 
     def upload(self, size: int) -> None:

@@ -27,7 +27,7 @@ import zipfile
 import humanize
 
 from s3_backup import BackupItem, global_settings
-from s3_backup.backup_item import BackupItemWrapper
+from s3_backup.backup_item import BackupItemWrapper, ShouldUpload, ShouldUploadDecision
 from s3_backup.stats import MinMax
 
 logger = logging.getLogger(__name__)
@@ -108,11 +108,11 @@ class GroupedItem(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
-    ) -> BackupItem.ShouldUpload:
+    ) -> ShouldUpload:
         if modification_time is None:  # not on S3
             logger.info(f"{self} needs uploading: "
                         f"not on S3")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "ZIP not on S3")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "ZIP not on S3")
         # else:
 
         # check metadata. Start with the cheap methods,
@@ -121,34 +121,34 @@ class GroupedItem(BackupItem):
         if num_items != metadata.get('num-items', ''):
             logger.info(f"{self} needs uploading: "
                         f"number of items differ {num_items} != {metadata.get('num-items', '')}")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "ZIP changed number of items")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "ZIP changed number of items")
 
         list_hash = self.list_hash()
         if list_hash != metadata.get('list-hash', ''):
             logger.info(f"{self} needs uploading: "
                         f"list-hash differs: {list_hash} != {metadata.get('list-hash', '')}")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "ZIP changed list-hash")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "ZIP changed list-hash")
 
         # Check mtime after checking the list of files. Otherwise we won't notice that a file was renamed
         if global_settings.trust_mtime:
             if self.mtime() <= modification_time.timestamp():
-                return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DontUpload)
+                return ShouldUpload(ShouldUploadDecision.DontUpload)
             # else: check hashes
 
         content_hash = self.content_hash()
         if content_hash != metadata.get('content-hash', ''):
             logger.info(f"{self} needs uploading: "
                         f"content-hash differs: {content_hash} != {metadata.get('content-hash', '')}")
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload, "ZIP changed content-hash")
+            return ShouldUpload(ShouldUploadDecision.DoUpload, "ZIP changed content-hash")
 
         if global_settings.trust_mtime:
             # Since we arrived here, the local file(s) have a newer mtime,
             # but the digest was still correct.
             # Bump the locally cached mtime of the S3 object, so we don't
             # need to check the digest until the file(s) are touched again
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.UpdateModificationTimeOnly)
+            return ShouldUpload(ShouldUploadDecision.UpdateModificationTimeOnly)
         else:
-            return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DontUpload)
+            return ShouldUpload(ShouldUploadDecision.DontUpload)
 
 
 class Tree:

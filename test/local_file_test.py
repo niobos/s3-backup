@@ -3,7 +3,7 @@ import os
 import pathlib
 
 from s3_backup import global_settings
-from s3_backup.backup_item import BackupItem
+from s3_backup.backup_item import ShouldUploadDecision
 from s3_backup.local_file import LocalFile
 
 
@@ -23,7 +23,7 @@ def test_local_file(testfile):
 
 def test_local_file_upload_if_new():
     lf = LocalFile("whatever")
-    assert lf.should_upload(None, None).decision == BackupItem.ShouldUploadDecision.DoUpload
+    assert lf.should_upload(None, None).decision == ShouldUploadDecision.DoUpload
 
 
 def test_local_file_upload_if_size_changed(testfile):
@@ -34,7 +34,7 @@ def test_local_file_upload_if_size_changed(testfile):
     f = LocalFile(pathlib.Path(filename))
     m = f.metadata()
     m['size'] = '12345568'
-    assert f.should_upload(datetime.datetime.now(), m).decision == BackupItem.ShouldUploadDecision.DoUpload
+    assert f.should_upload(datetime.datetime.now(), m).decision == ShouldUploadDecision.DoUpload
 
 
 def test_local_file_upload_if_mtime(testfile):
@@ -46,10 +46,10 @@ def test_local_file_upload_if_mtime(testfile):
     tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
 
     global_settings.trust_mtime = True
-    assert f.should_upload(tomorrow, m).decision == BackupItem.ShouldUploadDecision.DontUpload
+    assert f.should_upload(tomorrow, m).decision == ShouldUploadDecision.DontUpload
 
     global_settings.trust_mtime = False
-    assert f.should_upload(tomorrow, m).decision == BackupItem.ShouldUploadDecision.DoUpload
+    assert f.should_upload(tomorrow, m).decision == ShouldUploadDecision.DoUpload
 
     global_settings.trust_mtime = True  # restore for next tests
 
@@ -60,7 +60,7 @@ def test_local_file_touch_if_mtime(testfile):
     f = LocalFile(filename)
     m = f.metadata()
     yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
-    assert f.should_upload(yesterday, m).decision == BackupItem.ShouldUploadDecision.UpdateModificationTimeOnly
+    assert f.should_upload(yesterday, m).decision == ShouldUploadDecision.UpdateModificationTimeOnly
 
 
 def test_local_file_no_upload_if_up_to_date(testfile):
@@ -69,4 +69,4 @@ def test_local_file_no_upload_if_up_to_date(testfile):
     f = LocalFile(filename)
     m = f.metadata()
     tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
-    assert f.should_upload(tomorrow, m).decision == BackupItem.ShouldUploadDecision.DontUpload
+    assert f.should_upload(tomorrow, m).decision == ShouldUploadDecision.DontUpload

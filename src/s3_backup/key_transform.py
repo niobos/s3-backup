@@ -6,7 +6,7 @@ import re
 import subprocess
 import typing
 
-from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper
+from s3_backup.backup_item import BackupItem, logger, BackupItemWrapper, ShouldUpload
 
 
 class KeyTransformCmd(BackupItem):
@@ -58,7 +58,7 @@ class KeyTransformCmd(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]]
-    ) -> BackupItem.ShouldUpload:
+    ) -> ShouldUpload:
         return self.underlying.should_upload(
             modification_time=modification_time,
             metadata=metadata,
@@ -136,7 +136,7 @@ class KeyTransformSub(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]]
-    ) -> BackupItem.ShouldUpload:
+    ) -> ShouldUpload:
         return self.underlying.should_upload(
             modification_time=modification_time,
             metadata=metadata,

@@ -1,11 +1,11 @@
 import contextlib
 import datetime
 import io
-import random
 import typing
 import zipfile
 
 from s3_backup import BackupItem
+from s3_backup.backup_item import ShouldUpload, ShouldUploadDecision
 from s3_backup.group_small_files import group_files, GroupedItem
 
 
@@ -32,8 +32,8 @@ class MockItem(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
-    ) -> BackupItem.ShouldUpload:
-        return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload)
+    ) -> ShouldUpload:
+        return ShouldUpload(ShouldUploadDecision.DoUpload)
 
     def hash(self) -> str:
         return self._key
@@ -101,8 +101,8 @@ class MemoryItem(BackupItem):
             self,
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
-    ) -> BackupItem.ShouldUpload:
-        return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload)
+    ) -> ShouldUpload:
+        return ShouldUpload(ShouldUploadDecision.DoUpload)
 
     def hash(self) -> str:
         return str(self.content)
@@ -142,7 +142,7 @@ def test_sorting():
     assert shuffled.should_upload(
         modification_time=datetime.datetime.now() - datetime.timedelta(minutes=1),
         metadata=alphabetical.metadata(),
-    ).decision != BackupItem.ShouldUploadDecision.DoUpload
+    ).decision != ShouldUploadDecision.DoUpload
 
 
 def test_sorting_flatten():
@@ -173,7 +173,7 @@ def test_sorting_flatten():
     assert new.should_upload(
         modification_time=datetime.datetime.now() - datetime.timedelta(minutes=1),
         metadata=previous.metadata(),
-    ).decision != BackupItem.ShouldUploadDecision.DoUpload
+    ).decision != ShouldUploadDecision.DoUpload
 
 def test_rename():
     entries = [
@@ -189,4 +189,4 @@ def test_rename():
     m2 = g2.metadata()
 
     assert (g2.should_upload(modification_time=g1_mtime, metadata=m1).decision
-            == BackupItem.ShouldUploadDecision.DoUpload)
+            == ShouldUploadDecision.DoUpload)
