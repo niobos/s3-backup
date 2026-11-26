@@ -2,12 +2,19 @@ import numbers
 
 import humanize
 
+from s3_backup import BackupItem
+
 
 class Stats:
     def __init__(self):
         self.upload_files = 0
         self.upload_bytes = 0
         self.delete_files = 0
+        self.upload_decision_reason = {}
+
+    def upload_decision(self, decision: BackupItem.ShouldUpload) -> None:
+        if decision.decision == BackupItem.ShouldUploadDecision.DoUpload:
+            self.upload_decision_reason[decision.reason] = self.upload_decision_reason.get(decision.reason, 0) + 1
 
     def upload(self, size: int) -> None:
         self.upload_files += 1
@@ -17,9 +24,15 @@ class Stats:
         self.delete_files += 1
 
     def summary(self) -> str:
+        reasons = "\n".join([
+            f"    {k}: {v}"
+            for k, v in self.upload_decision_reason.items()
+        ])
         return f"""\
         Uploaded {self.upload_files} files, totalling {humanize.naturalsize(self.upload_bytes, binary=True)}
         Deleted {self.delete_files} files
+        Reason breakdown:
+        {reasons}
         """
 
 
