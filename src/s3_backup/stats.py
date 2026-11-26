@@ -1,8 +1,8 @@
 import numbers
+import textwrap
 
 import humanize
 
-from s3_backup import BackupItem
 from s3_backup.backup_item import ShouldUploadDecision, ShouldUpload
 
 
@@ -29,12 +29,11 @@ class Stats:
             f"    {k}: {v}"
             for k, v in self.upload_decision_reason.items()
         ])
-        return f"""\
+        return textwrap.dedent(f"""\
         Uploaded {self.upload_files} files, totalling {humanize.naturalsize(self.upload_bytes, binary=True)}
         Deleted {self.delete_files} files
         Reason breakdown:
-        {reasons}
-        """
+        """) + reasons
 
 
 class MinMax:
