@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import logging
 import typing
@@ -33,10 +34,15 @@ class BackupItem(abc.ABC):
         """
         return {}
 
-    class ShouldUpload(enum.Enum):
+    class ShouldUploadDecision(enum.Enum):
         DontUpload = enum.auto()
         DoUpload = enum.auto()
         UpdateModificationTimeOnly = enum.auto()
+
+    @dataclasses.dataclass(frozen=True)
+    class ShouldUpload:
+        decision: BackupItem.ShouldUploadDecision
+        reason: typing.Optional[str] = None
 
     @abc.abstractmethod
     def should_upload(

@@ -33,7 +33,7 @@ class MockItem(BackupItem):
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
     ) -> BackupItem.ShouldUpload:
-        return BackupItem.ShouldUpload.DoUpload
+        return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload)
 
     def hash(self) -> str:
         return self._key
@@ -102,7 +102,7 @@ class MemoryItem(BackupItem):
             modification_time: typing.Optional[datetime.datetime],
             metadata: typing.Optional[typing.Mapping[str, str]],
     ) -> BackupItem.ShouldUpload:
-        return BackupItem.ShouldUpload.DoUpload
+        return BackupItem.ShouldUpload(BackupItem.ShouldUploadDecision.DoUpload)
 
     def hash(self) -> str:
         return str(self.content)
@@ -142,7 +142,7 @@ def test_sorting():
     assert shuffled.should_upload(
         modification_time=datetime.datetime.now() - datetime.timedelta(minutes=1),
         metadata=alphabetical.metadata(),
-    ) != BackupItem.ShouldUpload.DoUpload
+    ).decision != BackupItem.ShouldUploadDecision.DoUpload
 
 
 def test_sorting_flatten():
@@ -173,7 +173,7 @@ def test_sorting_flatten():
     assert new.should_upload(
         modification_time=datetime.datetime.now() - datetime.timedelta(minutes=1),
         metadata=previous.metadata(),
-    ) != BackupItem.ShouldUpload.DoUpload
+    ).decision != BackupItem.ShouldUploadDecision.DoUpload
 
 def test_rename():
     entries = [
@@ -188,4 +188,5 @@ def test_rename():
     g2 = GroupedItem("a", entries)
     m2 = g2.metadata()
 
-    assert g2.should_upload(modification_time=g1_mtime, metadata=m1) == BackupItem.ShouldUpload.DoUpload
+    assert (g2.should_upload(modification_time=g1_mtime, metadata=m1).decision
+            == BackupItem.ShouldUploadDecision.DoUpload)
