@@ -41,7 +41,7 @@ class LocalFile(BackupItem):
                f"path={self.path}>"
 
     def key(self) -> str:
-        return self._key
+        return str(self._key)
 
     @contextlib.contextmanager
     def fileobj(self) -> typing.Generator[typing.BinaryIO, None, None]:

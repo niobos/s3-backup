@@ -88,7 +88,7 @@ def do_sync(
                 s3_info.s3_modification_time if s3_info is not None else None,
                 s3_info.metadata if s3_info is not None else None,
             )
-            logger.log(logging.INFO-1, f"Should upload? {upload_needed.decision.name}")
+            logger.log(logging.INFO-1, f"Should upload? {upload_needed.decision.name}: {upload_needed.reason}")
             stats.get().upload_decision(upload_needed)
             if upload_needed.decision == ShouldUploadDecision.DoUpload:
                 size = do_upload(

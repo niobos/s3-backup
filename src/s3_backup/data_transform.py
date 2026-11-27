@@ -30,7 +30,7 @@ class DataXformReadWrapper:
     def __init__(self,
                  xform: str,
                  fileobj: typing.BinaryIO,
-                 extra_env: dict = None
+                 extra_env: dict | None = None
                  ):
         xform_env = os.environ.copy()
         if extra_env is not None:

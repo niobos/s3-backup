@@ -30,14 +30,15 @@ class BackupItem(abc.ABC):
     class SizeMetadata(str):
         pass
 
-    def metadata(self) -> typing.Dict[str, str]:
+    def metadata(self) -> typing.Mapping[str, str]:
         """
         Return additional metadata to store on the object. This data
         can later be used in should_upload() to make the decision.
 
         The name "size" is treated specially: if it contains a value
-        of type SizeMetadata, the value will not be saved explicitly,
-        but the S3 built-in Content-Length will be used instead.
+        of type SizeMetadata, the value will not be saved explicitly to S3,
+        but the S3 built-in Content-Length will be used instead when
+        returning the metadata in the should_upload() method.
         Note that the returned value may differ from the outputted value
         if it is not the actual size.
         """

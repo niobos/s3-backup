@@ -179,7 +179,7 @@ class KeyTransformSubWrapper(BackupItemWrapper):
     def summary(self) -> str:
         return f"Passed {self.passed}, renamed {self.renamed}, skipped {self.skipped} files"
 
-    def __iter__(self) -> typing.Generator[KeyTransformCmd, None, None]:
+    def __iter__(self) -> typing.Generator[BackupItem, None, None]:
         for item in self.underlying_it:
             wrapped_item = KeyTransformSub(item, self.sub_pattern, self.sub_replacement)
             if wrapped_item.key() == "":
