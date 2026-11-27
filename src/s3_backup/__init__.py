@@ -13,7 +13,7 @@ from .__meta__ import __version__  # export package-wide
 from .backup_item import BackupItem, ShouldUploadDecision
 from .local_file import LocalFile
 from .s3cache import S3cache, S3ObjectInfo
-from .stats import Stats
+from .stats import stats
 
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,6 @@ def do_sync(
 
     logger.info("Beginning scan of local filesystem")
     cache.clear_flags()
-    stats = Stats()
     for item in file_list:
         logger.log(logging.INFO-1, f"Processing {item}")
 
@@ -90,7 +89,7 @@ def do_sync(
                 s3_info.metadata if s3_info is not None else None,
             )
             logger.log(logging.INFO-1, f"Should upload? {upload_needed.decision.name}")
-            stats.upload_decision(upload_needed)
+            stats.get().upload_decision(upload_needed)
             if upload_needed.decision == ShouldUploadDecision.DoUpload:
                 size = do_upload(
                     item,
@@ -99,7 +98,7 @@ def do_sync(
                     cache,
                     storage_class,
                 )
-                stats.upload(size)
+                stats.get().upload(size)
 
             cache.flag(item.key())
         except FileNotFoundError:
@@ -116,10 +115,10 @@ def do_sync(
                 Key=key,
             )
             del cache[key]
-        stats.delete()
+        stats.get().delete()
     logger.info("Delete done")
 
-    logger.log(logging.INFO+1, stats.summary())
+    logger.log(logging.INFO+1, stats.get().summary())
     logger.log(logging.INFO+1, f"S3 cache contains: {cache.summary()}")
 
 

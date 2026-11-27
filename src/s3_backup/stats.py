@@ -1,3 +1,4 @@
+import contextvars
 import numbers
 import textwrap
 
@@ -51,3 +52,6 @@ class MinMax:
 
     def __repr__(self):
         return f"MinMax({self.minimum}, {self.maximum})"
+
+
+stats: contextvars.ContextVar[Stats] = contextvars.ContextVar("stats", default=Stats())
