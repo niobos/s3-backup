@@ -13,6 +13,8 @@ class Stats:
         self.upload_bytes = 0
         self.delete_files = 0
         self.upload_decision_reason = {}
+        self.hashed_files = 0
+        self.hashed_bytes = 0
 
     def upload_decision(self, decision: ShouldUpload) -> None:
         if decision.decision == ShouldUploadDecision.DoUpload:
@@ -31,6 +33,7 @@ class Stats:
             for k, v in self.upload_decision_reason.items()
         ])
         return textwrap.dedent(f"""\
+        Hashed {self.hashed_files} files, totalling {humanize.naturalsize(self.hashed_bytes, binary=True)}
         Uploaded {self.upload_files} files, totalling {humanize.naturalsize(self.upload_bytes, binary=True)}
         Deleted {self.delete_files} files
         Reason breakdown:

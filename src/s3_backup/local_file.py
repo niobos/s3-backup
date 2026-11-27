@@ -8,8 +8,9 @@ import pathlib
 import re
 import typing
 
-from s3_backup import global_settings
-from s3_backup.backup_item import BackupItem, ShouldUpload, ShouldUploadDecision
+from . import global_settings
+from .backup_item import BackupItem, ShouldUpload, ShouldUploadDecision
+from .stats import stats
 
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ class LocalFile(BackupItem):
 
     @functools.lru_cache()
     def digest(self, algorithm: str) -> str:
+        stats.get().hashed_files += 1
         digest = hashlib.new(algorithm)
         with self.fileobj() as f:
             while True:
@@ -119,6 +121,7 @@ class LocalFile(BackupItem):
                 if not data:
                     break
                 digest.update(data)
+                stats.get().hashed_bytes += len(data)
         return f"{{{algorithm.upper()}}}{digest.hexdigest()}"
 
     def hash(self) -> str:
